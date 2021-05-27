@@ -1,9 +1,8 @@
 #include<stdio.h>
 #include<stdlib.h>
-// #include<mpi.h>
+#include<mpi.h>
 #include<dirent.h>
 #include<sys/types.h>
-#include<json-c/json.h>
 
 
 int count_files(char *folder_path)
