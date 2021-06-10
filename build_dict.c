@@ -79,7 +79,7 @@ void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict){
         char buffer[strlen(INPUT_DATA_FOLDER)+sizeof(int)+strlen(TITLE_EXTENSION)];
         strcat(strcpy(buffer, INPUT_DATA_FOLDER), file_index);
         strcat(buffer, TITLE_EXTENSION);
-        // printf("Rank %d Read file %s \n", my_rank, buffer);
+
         //Read file
         fp = fopen(buffer, "r");
 
@@ -119,12 +119,6 @@ void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict){
 
 
 char** merge_dict(char** src, uint64_t src_size, char** dst, uint64_t dst_size, uint64_t* dict_size, int my_rank){
-    printf("Rank %d merge two dict %ld and %ld\n", my_rank, src_size, dst_size);
-    // printf("Source array: ");
-    // print_array(src, src_size);
-    // printf("Destination array: ");
-    // print_array(dst, dst_size);
-
     SimpleSet s_final_dict;
     set_init(&s_final_dict);
     for(int i=0; i<src_size; i++){
@@ -139,8 +133,6 @@ char** merge_dict(char** src, uint64_t src_size, char** dst, uint64_t dst_size, 
     }
     char** merged = set_to_array(&s_final_dict, dict_size);
     set_destroy(&s_final_dict);
-    printf("Rank %d finish merge two dict dict_size = %ld, dict: \n", my_rank, *dict_size);
-    print_array(merged, *dict_size);
     return merged;
 }
 
@@ -175,12 +167,10 @@ int main(void)
     
     for(int i=lastpower; i<comm_sz; i++){
         if(my_rank == i){
-            printf("Rank %d send dict_size = %ld\n", my_rank, dict_size);
             MPI_Send(&dict_size, 1, MPI_UINT64_T, i-lastpower, my_rank, MPI_COMM_WORLD);
             for(int i_d=0; i_d < dict_size; i_d++){
                 int s_w = strlen(local_dict[i_d])+1;
                 MPI_Send(&s_w, 1, MPI_INT, i-lastpower, my_rank+i_d+1, MPI_COMM_WORLD);
-                // printf("Rank %d send word = %s\n", my_rank, local_dict[i_d]);
                 MPI_Send(local_dict[i_d], s_w, MPI_CHAR, i-lastpower, my_rank+i_d+1, MPI_COMM_WORLD);
             }
         }
@@ -191,20 +181,16 @@ int main(void)
             uint64_t recv_dict_size;
             MPI_Recv(&recv_dict_size, 1, MPI_UINT64_T, i+lastpower, i+lastpower, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             char** recv_dict = malloc(recv_dict_size*sizeof(char*));
-            printf("Rank %d receive dict_size = %ld\n", my_rank, recv_dict_size);
             for(int i_d = 0; i_d < recv_dict_size; i_d++){
                 int s_w;
                 MPI_Recv(&s_w, 1, MPI_INT, i+lastpower, i+lastpower+i_d+1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);    
                 recv_dict[i_d] = malloc(s_w*sizeof(char));
                 MPI_Recv(recv_dict[i_d], s_w, MPI_CHAR, i+lastpower, i+lastpower+i_d+1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                // printf("Rank %d receive word = %s\n", my_rank, recv_dict[i_d]);
             }
             uint64_t merged_dict_size;
             local_dict = merge_dict(recv_dict, recv_dict_size, local_dict, dict_size, &merged_dict_size, my_rank);
             dict_size = merged_dict_size;
             free(recv_dict);
-            printf("Rank %d dict with dict_size = %ld: \n", my_rank, dict_size);
-            print_array(local_dict, dict_size);
         }
     }
 
@@ -214,35 +200,24 @@ int main(void)
             const int sender = k + (1 << d);
             if(my_rank == receiver){
                 uint64_t recv_dict_size;
-                // printf("Rank %d create receive_dict_size from rank %d tag= %d\n", my_rank, sender, sender);
                 MPI_Recv(&recv_dict_size, 1, MPI_UINT64_T, sender, sender, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                printf("Rank %d receive from rank %d dict_size = %ld\n", my_rank, sender, recv_dict_size);
                 char** recv_dict = malloc(recv_dict_size*sizeof(char*));
                 int s_w;
                 for(int i_d = 0; i_d < recv_dict_size; i_d++){
-                    // printf("Rank %d create receive s_w from rank %d tag = %d\n", my_rank, sender, sender+i_d+1);
                     MPI_Recv(&s_w, 1, MPI_INT, sender, sender+i_d+1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);    
-                    // printf("Rank %d receive number character = %d tag = %d\n", my_rank, s_w, sender+i_d+1);
                     recv_dict[i_d] = malloc(s_w*sizeof(char));
-                    // printf("Rank %d create receive dict from rank %d tag= %d\n", my_rank, sender, sender+i_d+1);
                     MPI_Recv(recv_dict[i_d], s_w, MPI_CHAR, sender, sender+i_d+1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    // printf("Rank %d receive word = %s tag = %d\n", my_rank, recv_dict[i_d], sender+i_d+1);
+                    
                 }
                 uint64_t merged_dict_size;
                 local_dict = merge_dict(recv_dict, recv_dict_size, local_dict, dict_size, &merged_dict_size, my_rank);
                 dict_size = merged_dict_size;
                 free(recv_dict);
-                printf("Rank %d dict with dict_size = %ld: ", my_rank, dict_size);
-                print_array(local_dict, dict_size);
             }else if(my_rank == sender){
-                printf("Rank %d send dict_size = %ld, dict: ", my_rank, dict_size);
-                print_array(local_dict, dict_size);
                 MPI_Send(&dict_size, 1, MPI_UINT64_T, receiver, my_rank, MPI_COMM_WORLD);
                 for(int i_d=0; i_d < dict_size; i_d++){
                     int s_w = strlen(local_dict[i_d])+1;
-                    // printf("Rank %d send to %d number character = %d tag = %d\n", my_rank, receiver, s_w, my_rank+i_d+1);
                     MPI_Send(&s_w, 1, MPI_INT, receiver, sender+i_d+1, MPI_COMM_WORLD);
-                    // printf("Rank %d send to %d word = %s tag = %d\n", my_rank, receiver, local_dict[i_d], my_rank+i_d+1);
                     MPI_Send(local_dict[i_d], s_w, MPI_CHAR, receiver, sender+i_d+1, MPI_COMM_WORLD);
                 }
             }
