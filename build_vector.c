@@ -10,6 +10,7 @@
 #include <limits.h>
 
 const char* INPUT_DATA_FOLDER = "/home/anhtu/Project/trento/parallel-datamining-algorithms/data/";
+const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu/Project/trento/parallel-datamining-algorithms/data/";
 const char* TITLE_EXTENSION = "_title.txt";
 const int MAX_WORD_LEN = 50;
 const int MAX_SENTENCE_LEN = 1000;
@@ -70,12 +71,13 @@ void print_array(char** array, uint64_t size){
     printf("\n");
 }
 
-void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, char** local_sentence, int* sentence_size, int* max_sentence_size){
+void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, char** local_sentence, int* sentence_size, int* max_sentence_size, int* number_sentence){
     FILE *fp;
     set_init(dict);
     
     *sentence_size = 0;
     *max_sentence_size = -1;
+    *number_sentence = 0;
     
     //Just read file base on rank
     for(int i=my_rank; i<num_file; i+=comm_sz){
@@ -131,15 +133,17 @@ void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, c
         }
 
         // local_sentence[*sentence_size] = malloc(1+strlen(DOC_SEPARATION_CHAR));
-        local_sentence[*sentence_size] = DOC_SEPARATION_CHAR;
-        *sentence_size = (*sentence_size) + 1;
+        if(i_sentence_size > 0){
+            local_sentence[*sentence_size] = DOC_SEPARATION_CHAR;
+            *sentence_size = (*sentence_size) + 1;
+            *number_sentence = (*number_sentence) + 1;
+        }
         if(i_sentence_size > *max_sentence_size){
             *max_sentence_size = i_sentence_size;
         }
     }
     // printf("Rank %d DONE BUILD LOCAL SENTENCE WITH SIZE = %d\n",my_rank, *sentence_size);
     local_sentence = realloc(local_sentence, (*sentence_size)*(sizeof(char*)));
-    // return local_sentence;
 }
 
 
@@ -162,8 +166,56 @@ char** merge_dict(char** src, uint64_t src_size, char** dst, uint64_t dst_size, 
 }
 
 
-void build_local_vector(char** local_dict, int dict_size, char** sentence, int sentence_size, int max_sen_size){
-    printf("Build local vector with max_sen_size = %d\n", max_sen_size);
+void save_vector_2file(int* vector, int vector_size, int doc_index){
+    printf("Save ");
+    for(int i=0; i<vector_size; i++){
+        printf("%d ", vector[i]);
+    }
+    printf(" to file ....\n");
+    
+    char file_index[sizeof(int)];
+    sprintf(file_index, "%d", doc_index);
+    char buffer[strlen(INPUT_DATA_FOLDER)+sizeof(int)+strlen(".data")];
+    strcat(strcpy(buffer, INPUT_DATA_FOLDER), file_index);
+    strcat(buffer, ".data");
+    FILE *fp;
+    fp = fopen(buffer, "wb");
+    fwrite(vector, sizeof(int), vector_size, fp);
+}
+
+
+int** build_local_vector(int rank, char** local_dict, int dict_size, char** sentence, int sentence_size, int number_sentence, int max_sen_size){
+    printf("====== Build local vector sentence: ======\nSetence: ");
+    print_array(sentence, sentence_size);
+    printf("Dict: ");
+    print_array(local_dict, dict_size);
+    
+    int** v_setence = malloc(number_sentence*sizeof(int*));
+    int i_w = 0;
+    int i_s = 0;
+    for(int i=0; i<number_sentence; i++){
+        v_setence[i] = malloc(max_sen_size*sizeof(int));
+        for(int j=0; j<max_sen_size; j++){
+            v_setence[i][j] = -1;
+        }
+    }
+    
+    for(int i=0; i<sentence_size-1; i++){
+        char* word = sentence[i];
+        if(strcmp(word, DOC_SEPARATION_CHAR) == 0){
+            i_w = 0;
+            i_s++;
+            continue;
+        }
+        for(int j=0; j<dict_size; j++){
+            if(strcmp(word, local_dict[j]) == 0){
+                v_setence[i_s][i_w] = j;
+                break;
+            }
+        }
+        i_w++;
+    }
+    return v_setence;
 }
 
 
@@ -190,7 +242,8 @@ int main(void)
     int sentence_size;
     int local_max_sen_size;
     char** local_sentence = malloc(MAX_SENTENCE_LEN * sizeof(char*));
-    build_local_dict(num_file, my_rank, comm_sz, &set_local_dict, local_sentence, &sentence_size, &local_max_sen_size);
+    int number_sentence;
+    build_local_dict(num_file, my_rank, comm_sz, &set_local_dict, local_sentence, &sentence_size, &local_max_sen_size, &number_sentence);
     
     uint64_t dict_size;
     char** local_dict = set_to_array(&set_local_dict, &dict_size);
@@ -270,6 +323,7 @@ int main(void)
 
     //Broadcast result to all process
     if(my_rank == 0){
+        print_array(local_dict, dict_size);
         for(int i=1; i<comm_sz; i++){
             // printf("Rank %d send dict_size = %ld to rank %d\n", my_rank, dict_size, i);
             MPI_Bcast(&dict_size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
@@ -297,15 +351,44 @@ int main(void)
             }
         }
     }
-    printf("Rank %d has sentence (size = %d, max_size = %d): ", my_rank, sentence_size, local_max_sen_size);
-    print_array(local_sentence, sentence_size);
-    printf("Rank %d has dict (size=%ld): ", my_rank, dict_size);
-    print_array(local_dict, dict_size);
+    // printf("Rank %d has sentence (size = %d, max_size = %d): ", my_rank, sentence_size, local_max_sen_size);
+    // print_array(local_sentence, sentence_size);
+    // printf("Rank %d has dict (size=%ld): ", my_rank, dict_size);
+    // print_array(local_dict, dict_size);
     int max_sentence_size;
     MPI_Allreduce(&local_max_sen_size, &max_sentence_size, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-    build_local_vector(local_dict, dict_size, local_sentence, sentence_size, max_sentence_size);
+    
+    int** doc = build_local_vector(my_rank, local_dict, dict_size, local_sentence, sentence_size, number_sentence, max_sentence_size);
+    printf("========= Doc of Rank %d =========\n", my_rank);
+    for(int i=0; i<number_sentence; i++){
+        for(int j=0; j<max_sentence_size; j++){
+            printf("%d ", doc[i][j]);
+        }
+        printf("\n");
+    }
+    printf("==================================\n");
 
-
+    //Receive vector to store to file
+    if(my_rank == 0){
+        for(int i=0; i<number_sentence; i++){
+            save_vector_2file(doc[i], max_sentence_size, i);
+        }
+        for(int i=1; i<comm_sz; i++){
+            int num_recv_sen;
+            MPI_Recv(&num_recv_sen, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            printf("Rank 0 receive number_sentence = %d from %d\n", num_recv_sen, i);
+            for(int j=0; j<num_recv_sen; j++){
+                int recv_sen[max_sentence_size];
+                MPI_Recv(recv_sen, max_sentence_size, MPI_INT, i, j, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                save_vector_2file(recv_sen, max_sentence_size, i+j);
+            }
+        }
+    }else{
+        MPI_Send(&number_sentence, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+        for(int i=0; i<number_sentence; i++){
+            MPI_Send(doc[i], max_sentence_size, MPI_INT, 0, i, MPI_COMM_WORLD);
+        }
+    }
     MPI_Finalize();
     return 0;
 }
