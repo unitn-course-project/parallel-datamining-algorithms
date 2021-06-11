@@ -13,6 +13,10 @@ const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms
 const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
 const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
 
+// const char* INPUT_DATA_FOLDER = "./data/";
+// const char* VECTOR_OUTPUT_FOLDER = "./data/";
+// const char* DICT_OUTPUT_FOLDER = "./dict/";
+
 const char* TITLE_EXTENSION = "_title.txt";
 const int MAX_WORD_LEN = 50;
 const int MAX_SENTENCE_LEN = 1000;
@@ -48,6 +52,7 @@ int count_files(const char *folder_path)
     while((entry = readdir(dirp)) != NULL){
         if (entry->d_type == DT_REG && entry->d_name[0] != '.')
         {
+            printf("Read file %s\n", entry->d_name);
             file_count++;
         }
         
@@ -169,8 +174,8 @@ char** merge_dict(char** src, uint64_t src_size, char** dst, uint64_t dst_size, 
 void save_vector_2file(int* vector, int vector_size, int doc_index){
     char file_index[sizeof(int)];
     sprintf(file_index, "%d", doc_index);
-    char buffer[strlen(INPUT_DATA_FOLDER)+sizeof(int)+strlen(".data")];
-    strcat(strcpy(buffer, INPUT_DATA_FOLDER), file_index);
+    char buffer[strlen(VECTOR_OUTPUT_FOLDER)+sizeof(int)+strlen(".data")];
+    strcat(strcpy(buffer, VECTOR_OUTPUT_FOLDER), file_index);
     strcat(buffer, ".data");
     FILE *fp;
     fp = fopen(buffer, "wb");
