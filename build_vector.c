@@ -9,13 +9,13 @@
 #include <inttypes.h>
 #include <limits.h>
 
-// const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data_small/";
-// const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
-// const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
+const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data/";
+const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
+const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
 
-const char* INPUT_DATA_FOLDER = "./data/";
-const char* VECTOR_OUTPUT_FOLDER = "./data/";
-const char* DICT_OUTPUT_FOLDER = "./dict/";
+// const char* INPUT_DATA_FOLDER = "./data/";
+// const char* VECTOR_OUTPUT_FOLDER = "./data/";
+// const char* DICT_OUTPUT_FOLDER = "./dict/";
 
 const char* TITLE_EXTENSION = "_title.txt";
 const int MAX_WORD_LEN = 50;
@@ -94,7 +94,7 @@ void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, c
         char buffer[strlen(INPUT_DATA_FOLDER)+sizeof(int)+strlen(TITLE_EXTENSION)];
         strcat(strcpy(buffer, INPUT_DATA_FOLDER), file_index);
         strcat(buffer, TITLE_EXTENSION);
-        printf("Rank %d read file %s\n", my_rank, buffer);
+        
         //Read file
         fp = fopen(buffer, "r");
 
