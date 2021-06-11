@@ -11,6 +11,7 @@
 
 const char* INPUT_DATA_FOLDER = "/home/anhtu/Project/trento/parallel-datamining-algorithms/data/";
 const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu/Project/trento/parallel-datamining-algorithms/data/";
+const char* DICT_OUTPUT_FOLDER = "/home/anhtu/Project/trento/parallel-datamining-algorithms/dict/";
 const char* TITLE_EXTENSION = "_title.txt";
 const int MAX_WORD_LEN = 50;
 const int MAX_SENTENCE_LEN = 1000;
@@ -308,7 +309,7 @@ int main(void)
 
     //Broadcast result to all process
     if(my_rank == 0){
-        print_array(local_dict, dict_size);
+        // print_array(local_dict, dict_size);
         for(int i=1; i<comm_sz; i++){
             MPI_Bcast(&dict_size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
             for(int i_d=0; i_d < dict_size; i_d++){
@@ -337,6 +338,7 @@ int main(void)
     
     //Receive vector to store to file
     if(my_rank == 0){
+        printf("========= max_sentence_size = %d =========\n", max_sentence_size);
         for(int i=0; i<number_sentence; i++){
             save_vector_2file(doc[i], max_sentence_size, i);
         }
@@ -348,6 +350,23 @@ int main(void)
                 MPI_Recv(recv_sen, max_sentence_size, MPI_INT, i, j, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 save_vector_2file(recv_sen, max_sentence_size, i+j);
             }
+        }
+        //Save dictionary
+        FILE *fp;
+        int iter_step = dict_size/comm_sz;
+        for(int i=0; i<dict_size; i++){
+            if(i % iter_step == 0){
+                if(i > 0){
+                    fclose(fp);
+                }
+                char file_index[sizeof(int)];
+                sprintf(file_index, "%d", i/iter_step);
+                char buffer[strlen(DICT_OUTPUT_FOLDER)+sizeof(int)+strlen(".txt")];
+                strcat(strcpy(buffer, DICT_OUTPUT_FOLDER), file_index);
+                strcat(buffer, ".txt");
+                fp = fopen(buffer, "w");
+            }
+            fprintf(fp, "%s\t%d\n", local_dict[i], i);
         }
     }else{
         MPI_Send(&number_sentence, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
