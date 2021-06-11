@@ -9,7 +9,7 @@
 #include <inttypes.h>
 #include <limits.h>
 
-const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data/";
+const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data_small/";
 const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
 const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
 
