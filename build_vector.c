@@ -9,8 +9,8 @@
 #include <inttypes.h>
 #include <limits.h>
 
-const char* INPUT_DATA_FOLDER = "/home/anhtu/Project/trento/parallel-datamining-algorithms/data/";
-const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu/Project/trento/parallel-datamining-algorithms/data/";
+const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data/";
+const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
 const char* TITLE_EXTENSION = "_title.txt";
 const int MAX_WORD_LEN = 50;
 const int MAX_SENTENCE_LEN = 1000;
@@ -81,6 +81,8 @@ void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, c
     
     //Just read file base on rank
     for(int i=my_rank; i<num_file; i+=comm_sz){
+        if(i == (i + comm_sz*2))
+            break;
         //Get file name
         char file_index[sizeof(int)];
         sprintf(file_index, "%d", i);
