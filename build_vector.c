@@ -94,7 +94,7 @@ void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, c
         char buffer[strlen(INPUT_DATA_FOLDER)+sizeof(int)+strlen(TITLE_EXTENSION)];
         strcat(strcpy(buffer, INPUT_DATA_FOLDER), file_index);
         strcat(buffer, TITLE_EXTENSION);
-
+        printf("Rank %d read file %s\n", my_rank, buffer);
         //Read file
         fp = fopen(buffer, "r");
 
@@ -218,13 +218,13 @@ int main(void)
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
 
-    int num_file = 0;
+    int num_file = 1000;
     
     //Count number of file
-    if (my_rank == 0){
-        num_file = count_files(INPUT_DATA_FOLDER)/3;
-        printf("Number of file is: %d\n", num_file);
-    }
+    // if (my_rank == 0){
+    //     num_file = count_files(INPUT_DATA_FOLDER)/3;
+    //     printf("Number of file is: %d\n", num_file);
+    // }
     MPI_Bcast(&num_file, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
 
