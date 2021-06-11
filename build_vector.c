@@ -9,18 +9,18 @@
 #include <inttypes.h>
 #include <limits.h>
 
-const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data_small/";
-const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
-const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
+// const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data_small/";
+// const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
+// const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
 
-// const char* INPUT_DATA_FOLDER = "./data/";
-// const char* VECTOR_OUTPUT_FOLDER = "./data/";
-// const char* DICT_OUTPUT_FOLDER = "./dict/";
+const char* INPUT_DATA_FOLDER = "./data/";
+const char* VECTOR_OUTPUT_FOLDER = "./data/";
+const char* DICT_OUTPUT_FOLDER = "./dict/";
 
 const char* TITLE_EXTENSION = "_title.txt";
 const int MAX_WORD_LEN = 50;
 const int MAX_SENTENCE_LEN = 1000;
-char* DOC_SEPARATION_CHAR = "#$#$";
+char* DOC_SEPARATION_CHAR = "\n\n";
 
 
 static int fastlog2(uint32_t v) {
@@ -218,7 +218,7 @@ int main(void)
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
 
-    int num_file = 1000;
+    int num_file = 100000;
     
     //Count number of file
     // if (my_rank == 0){
@@ -346,7 +346,7 @@ int main(void)
     if(my_rank == 0){
         printf("========= max_sentence_size = %d =========\n", max_sentence_size);
         for(int i=0; i<number_sentence; i++){
-            save_vector_2file(doc[i], max_sentence_size, i);
+            save_vector_2file(doc[i], max_sentence_size, i*comm_sz);
         }
         for(int i=1; i<comm_sz; i++){
             int num_recv_sen;
@@ -354,7 +354,7 @@ int main(void)
             for(int j=0; j<num_recv_sen; j++){
                 int recv_sen[max_sentence_size];
                 MPI_Recv(recv_sen, max_sentence_size, MPI_INT, i, j, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                save_vector_2file(recv_sen, max_sentence_size, i+j);
+                save_vector_2file(recv_sen, max_sentence_size, i+j*comm_sz);
             }
         }
         //Save dictionary
