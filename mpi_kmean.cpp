@@ -7,12 +7,8 @@
 #include <math.h>
 #include <stdlib.h>
 using namespace std;
-const string inputFolderPath = "output/vector/";
-const string inputFileType = ".data";
-double f(double x)
-{
-  return x * x;
-}
+string inputFolderPath = "output/vector/";
+string inputFileType = ".data";
 
 void print_arr(int rank, double *x, int size, char *msg)
 {
@@ -24,6 +20,23 @@ void print_arr(int rank, double *x, int size, char *msg)
     printf("%f ", x[i]);
   }
   printf("End arr \n");
+}
+
+void write_arr(string filepath, int *arr, int size)
+{
+
+  ofstream file(filepath, ios::out | ios::binary | ios::ate);
+  if (file.is_open())
+  {
+    for (int i = 0; i < size; i++)
+    {
+      file.write((char *)&arr[i], sizeof(int));
+    }
+    file.close();
+    cout << "save array to file " << filepath << endl;
+  }
+
+  cout << "save array to file error " << endl;
 }
 void print_arr_int(int rank, int *x, int size, char *msg)
 {
@@ -174,7 +187,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
       d_cluster[i] = cluster_index;
       use_cluster[cluster_index] = 1;
     }
-    printf("rank %d done found cluster process \n", rank);
+    //printf("rank %d done found cluster process \n", rank);
     double local_mean[k * m];
 
     memset(local_mean, 0, sizeof global_mean);
@@ -197,7 +210,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
         for (int j = 0; j < m; j++)
           local_mean[i * m + j] = global_mean[i * m + j];
     }
-    printf("rank %d done calculate local mean \n", rank);
+    //printf("rank %d done calculate local mean \n", rank);
     //print_arr(rank, local_mean, m * k, "local mean");
     if (rank != 0)
       MPI_Send(local_mean, k * m, MPI_DOUBLE, 0, 0, comm);
@@ -208,7 +221,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     {
       for (int i = 1; i < comm_sz; i++)
       {
-        printf("rank %d wait recv from process %d \n", rank, i);
+        //printf("rank %d wait recv from process %d \n", rank, i);
         double local_mean_tmp[m * k];
         MPI_Recv(local_mean_tmp, m * k, MPI_DOUBLE, i, 0, comm, MPI_STATUS_IGNORE);
         addVector(global_mean, local_mean_tmp, k * m);
@@ -216,7 +229,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
       for (int i = 0; i < m * k; i++)
         global_mean[i] = global_mean[i] / comm_sz;
     }
-    printf("rank %d done propagate local mean", rank);
+    //printf("rank %d done propagate local mean", rank);
     iterator++;
   }
   int d_cluster[local_n];
@@ -249,40 +262,95 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     print_arr(rank, global_mean, m * k, "");
   return total_d_cluster;
 }
+void show_usage(){
+  cout<<"Please use -h or --help to get information about argument" <<endl;
+}
+void show_help(){
+  cout<<"Please use -h or --help to get information about argument" <<endl;
+  cout<<"-k (--cluster) number of cluster" <<endl;
+  cout<<"-n number of process" <<endl;
+  cout<<"-ne (--size) number of example, make sure this number is multiple of the process number" <<endl;
+  cout<<"-mi (--maxiterator) maxium of clustering steps" <<endl;
+  cout<<"-d (--dimension) dimension of input vector" <<endl;
+  cout<<"-inputFolderPath  path to inputer folder" <<endl;
+  cout<<"-inputFileType indicate the file should process" <<endl;
+  cout<<"-outputFileName indicate the output file name" <<endl;
+}
+void check_arguments(int argc, char **argv){
+  if (argc < 2) {
+        show_usage();
+      throw 1;
+    }
+}
 int main(int argc, char **argv)
 {
-  cout << "STRART" << endl;
+  int max_iterator = 1000;
+  int number_of_element = 1000;
+  int dimension = 300;
+  int number_of_cluster = 4;
+  string outputFileName="mpi_kmean-4.bin";
+  try{
+    check_arguments(argc,argv);
+  }
+  catch (int e){
+    if (e==1)
+    cout<< "Not enough arguments!! " <<endl;
+    else
+    cout <<" Error "<< e <<endl;
+    return 1;
+  }
+  int mandatory_field=0;
+  for (int i = 1; i < argc; ++i) {
+    string arg= argv[i];
+    if ((arg == "-h") || (arg == "--help")) {
+      show_help();
+    }
+    if ((arg == "-k") || (arg == "--cluster")) {
+      number_of_cluster=stoi(argv[i+1]);
+    }
+    if ((arg == "-ne") || (arg == "--size")) {
+      number_of_element=stoi(argv[i+1]);
+      mandatory_field++;
+    }
+    if ((arg == "-mi") || (arg == "--maxiterator")) {
+      max_iterator=stoi(argv[i+1]);
+    }
+    if ((arg == "-d") || (arg == "--dimension")) {
+      dimension=stoi(argv[i+1]);
+    }
+    if ((arg == "-inputFolderPath") || (arg == "--inputFolderPath")) {
+      inputFolderPath=argv[i+1];
+    }
+    if ((arg == "-inputFileType") || (arg == "--inputFileType")) {
+      inputFileType=argv[i+1];
+    }
+    if ((arg == "-outputFileName") || (arg == "--outputFileName")) {
+      outputFileName=argv[i+1];
+    }
+  }
+  if (mandatory_field<1) {
+    cout<<"Please set value for mandatory field!"<< endl;
+    return 1;
+  } 
+  cout << "START" << endl;
   int comm_sz;
   int my_rank;
   MPI_Init(NULL, NULL);
   MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   // Get the number of processes
-  int max_iterator = 1000;
-  int n = 1000;
-  int m = 300;
+
   double *local_a = NULL;
-  int local_n = n/comm_sz;
-  local_a = get_input(my_rank, &local_n, &n, &m, comm_sz, MPI_COMM_WORLD);
-  int k = 4;
+  int local_n = number_of_element / comm_sz;
+  local_a = get_input(my_rank, &local_n, &number_of_element, &dimension, comm_sz, MPI_COMM_WORLD);
   //print_arr(my_rank, local_a, local_n * m, "");
-  int *total_d_cluster = kmean(max_iterator, my_rank, k, local_a, m, n, local_n, comm_sz, MPI_COMM_WORLD);
+  int *total_d_cluster = kmean(max_iterator, my_rank, number_of_cluster, local_a, dimension, number_of_element, local_n, comm_sz, MPI_COMM_WORLD);
   if (my_rank == 0)
-    print_arr_int(my_rank, total_d_cluster, n, " cluster per element");
-  // double *y= NULL;
-  // double *local_y=(double *) malloc(local_n * sizeof(double));
-  // int i = 0;
-  // for(i=0;i<local_n;i++){
-  //     local_y[i]=f(local_a[i]);
-  // }
-  // y=get_output(my_rank,n,local_n,local_y,MPI_COMM_WORLD);
-
-  // if(my_rank==0) print_arr(my_rank, y, n);
-  //for (i = 0; i < n; i++)
-  //{
-  //    printf("%f ", y[i]);
-  //}
-
+  {
+    //print_arr_int(my_rank, total_d_cluster, number_of_element, " cluster per element");
+    write_arr(outputFileName, total_d_cluster, number_of_element);
+  }
+  cout<<"END"<<endl;
   MPI_Finalize();
   return 0;
 }
