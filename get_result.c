@@ -3,7 +3,8 @@
 #include<stdlib.h>
 #include<string.h>
 
-const int SENTENCE_SIZE = 406;
+const int SENTENCE_SIZE = 6833;
+const int DICT_WORD_PER_FILE = 1434;
 
 int main(int argc, char** argv) {
     // FILE *fp_cluster;
@@ -38,7 +39,7 @@ int main(int argc, char** argv) {
         // printf("Word id = %d\n", word_id);
         if(word_id == -1)
           break;
-        int dict_file = word_id/119;
+        int dict_file = word_id/DICT_WORD_PER_FILE;
         FILE *fp_dict;
         char file_dict_index[sizeof(int)];
         sprintf(file_dict_index, "%d", dict_file);
