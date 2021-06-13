@@ -9,18 +9,20 @@
 #include <inttypes.h>
 #include <limits.h>
 
-const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data/";
-const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
-const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
+// const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data/";
+// const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
+// const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
 
-// const char* INPUT_DATA_FOLDER = "./data/";
-// const char* VECTOR_OUTPUT_FOLDER = "./data/";
-// const char* DICT_OUTPUT_FOLDER = "./dict/";
+const char* INPUT_DATA_FOLDER = "./data/";
+const char* VECTOR_OUTPUT_FOLDER = "./vector/";
+const char* DICT_OUTPUT_FOLDER = "./dict/";
 
 const char* TITLE_EXTENSION = "_title.txt";
+const char* ABSTRACT_EXTENSION = "_abstract.txt";
+const char* BODY_EXTENSION = "_body.txt";
 const int MAX_WORD_LEN = 50;
-const int MAX_SENTENCE_LEN = 1000;
-char* DOC_SEPARATION_CHAR = "\n\n";
+const int MAX_SENTENCE_LEN = 100000;
+char* DOC_SEPARATION_CHAR = "$$$$$$";
 
 
 static int fastlog2(uint32_t v) {
@@ -78,8 +80,62 @@ void print_array(char** array, uint64_t size){
     printf("\n");
 }
 
-void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, char** local_sentence, int* sentence_size, int* max_sentence_size, int* number_sentence){
+
+void read_file(const char* file_type, int file_number, int* i_sentence_size, SimpleSet* dict, char** local_sentence, int* sentence_size, int* max_sentence_size, int* number_sentence){
+
     FILE *fp;
+    //Get file name
+    char file_index[sizeof(int)];
+    sprintf(file_index, "%d", file_number);
+    char buffer[strlen(INPUT_DATA_FOLDER)+sizeof(int)+strlen(file_type)];
+    strcat(strcpy(buffer, INPUT_DATA_FOLDER), file_index);
+    strcat(buffer, file_type);
+    
+    //Read file
+    fp = fopen(buffer, "r");
+    printf("READ %s\n", buffer);
+    char ch;
+    //store word
+    char* word = malloc(MAX_WORD_LEN* sizeof(char));
+    int cnt = 0;
+    while ((ch = fgetc(fp)) != EOF){
+        ch = tolower(ch);
+        //read word by word and add to dict
+        if(ch == ' ' || ch == '\n'){
+            if(cnt != 0){
+                word[cnt] = '\0';
+                char* word_resized = realloc(word, (cnt+1)*sizeof(char));
+                local_sentence[(*sentence_size)] = malloc((cnt+1)*sizeof(char));
+                local_sentence[(*sentence_size)] = word_resized;
+                *sentence_size = (*sentence_size)+1;
+                (*i_sentence_size)++;
+                if(set_contains(dict, word_resized) == SET_FALSE){
+                    set_add(dict, word_resized);
+                }
+                cnt = 0;
+                word = malloc(MAX_WORD_LEN*sizeof(char));
+            }
+        }else{
+            word[cnt] = ch;
+            cnt++;
+        }
+    }
+    if(cnt != 0){
+        word[cnt] = '\0';
+        char* word_resized = realloc(word, (cnt+1)*sizeof(char));
+        local_sentence[(*sentence_size)] = malloc((cnt+1)*sizeof(char));
+        local_sentence[(*sentence_size)] = word_resized;
+        *sentence_size = (*sentence_size)+1;
+        (*i_sentence_size)++;
+        if(set_contains(dict, word_resized) == SET_FALSE){
+            set_add(dict, word_resized);
+        }
+    }
+    fclose(fp);
+}
+
+
+void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, char** local_sentence, int* sentence_size, int* max_sentence_size, int* number_sentence){
     set_init(dict);
     
     *sentence_size = 0;
@@ -88,54 +144,10 @@ void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, c
     
     //Just read file base on rank
     for(int i=my_rank; i<num_file; i+=comm_sz){
-        //Get file name
-        char file_index[sizeof(int)];
-        sprintf(file_index, "%d", i);
-        char buffer[strlen(INPUT_DATA_FOLDER)+sizeof(int)+strlen(TITLE_EXTENSION)];
-        strcat(strcpy(buffer, INPUT_DATA_FOLDER), file_index);
-        strcat(buffer, TITLE_EXTENSION);
-        
-        //Read file
-        fp = fopen(buffer, "r");
-
-        char ch;
-        //store word
-        char* word = malloc(MAX_WORD_LEN* sizeof(char));
-        int cnt = 0;
         int i_sentence_size = 0;
-        while ((ch = fgetc(fp)) != EOF){
-            ch = tolower(ch);
-            //read word by word and add to dict
-            if(ch == ' ' || ch == '\n'){
-                if(cnt != 0){
-                    word[cnt] = '\0';
-                    char* word_resized = realloc(word, (cnt+1)*sizeof(char));
-                    local_sentence[(*sentence_size)] = malloc((cnt+1)*sizeof(char));
-                    local_sentence[(*sentence_size)] = word_resized;
-                    *sentence_size = (*sentence_size)+1;
-                    i_sentence_size++;
-                    if(set_contains(dict, word_resized) == SET_FALSE){
-                        set_add(dict, word_resized);
-                    }
-                    cnt = 0;
-                    word = malloc(MAX_WORD_LEN*sizeof(char));
-                }
-            }else{
-                word[cnt] = ch;
-                cnt++;
-            }
-        }
-        if(cnt != 0){
-            word[cnt] = '\0';
-            char* word_resized = realloc(word, (cnt+1)*sizeof(char));
-            local_sentence[(*sentence_size)] = malloc((cnt+1)*sizeof(char));
-            local_sentence[(*sentence_size)] = word_resized;
-            *sentence_size = (*sentence_size)+1;
-            i_sentence_size++;
-            if(set_contains(dict, word_resized) == SET_FALSE){
-                set_add(dict, word_resized);
-            }
-        }
+        
+        read_file(TITLE_EXTENSION, i, &i_sentence_size, dict, local_sentence, sentence_size, max_sentence_size, number_sentence);
+        read_file(ABSTRACT_EXTENSION, i, &i_sentence_size, dict, local_sentence, sentence_size, max_sentence_size, number_sentence);
 
         if(i_sentence_size > 0){
             local_sentence[*sentence_size] = DOC_SEPARATION_CHAR;
@@ -218,7 +230,7 @@ int main(void)
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
 
-    int num_file = 100000;
+    int num_file = 5;
     
     //Count number of file
     // if (my_rank == 0){
@@ -230,12 +242,14 @@ int main(void)
 
     //Build dictionary and sentence of local process
     SimpleSet set_local_dict;
-    
+    set_init(&set_local_dict);
+
     int sentence_size;
     int local_max_sen_size;
-    char** local_sentence = malloc(MAX_SENTENCE_LEN * sizeof(char*));
+    char** local_sentence = malloc(MAX_SENTENCE_LEN*sizeof(char*));
     int number_sentence;
     build_local_dict(num_file, my_rank, comm_sz, &set_local_dict, local_sentence, &sentence_size, &local_max_sen_size, &number_sentence);
+    printf("DONE BUILD DICT WITH ABSTRACT SENTENCE SIZE = %d", sentence_size);
     
     uint64_t dict_size;
     char** local_dict = set_to_array(&set_local_dict, &dict_size);
