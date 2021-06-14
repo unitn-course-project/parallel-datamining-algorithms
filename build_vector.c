@@ -44,6 +44,12 @@ static int fastlog2(uint32_t v) {
     return r;
 }
 
+void free_table(char** table, uint64_t row_size){
+    for(int i=0; i<row_size; i++)
+        free(table[i]);
+    free(table);
+}
+
 int count_files(const char *folder_path)
 {
     int file_count = 0;
@@ -92,7 +98,7 @@ void read_file(const char* file_type, int file_number, int* i_sentence_size, Sim
     
     //Read file
     fp = fopen(buffer, "r");
-    
+
     char ch;
     //store word
     char* word = malloc(MAX_WORD_LEN* sizeof(char));
@@ -111,6 +117,8 @@ void read_file(const char* file_type, int file_number, int* i_sentence_size, Sim
                 if(set_contains(dict, word_resized) == SET_FALSE){
                     set_add(dict, word_resized);
                 }
+                free(word_resized);
+                // free(word);
                 cnt = 0;
                 word = malloc(MAX_WORD_LEN*sizeof(char));
             }
@@ -129,6 +137,7 @@ void read_file(const char* file_type, int file_number, int* i_sentence_size, Sim
         if(set_contains(dict, word_resized) == SET_FALSE){
             set_add(dict, word_resized);
         }
+        free(word_resized);
     }
     fclose(fp);
 }
@@ -176,6 +185,8 @@ char** merge_dict(char** src, uint64_t src_size, char** dst, uint64_t dst_size, 
             }
     }
     char** merged = set_to_array(&s_final_dict, dict_size);
+    free_table(src, src_size);
+    free_table(dst, dst_size);
     set_destroy(&s_final_dict);
     return merged;
 }
@@ -190,6 +201,7 @@ void save_vector_2file(int* vector, int vector_size, int doc_index){
     FILE *fp;
     fp = fopen(buffer, "wb");
     fwrite(vector, sizeof(int), vector_size, fp);
+    fclose(fp);
 }
 
 
@@ -288,7 +300,6 @@ int main(void)
             uint64_t merged_dict_size;
             local_dict = merge_dict(recv_dict, recv_dict_size, local_dict, dict_size, &merged_dict_size, my_rank);
             dict_size = merged_dict_size;
-            free(recv_dict);
         }
     }
 
@@ -313,7 +324,6 @@ int main(void)
                 uint64_t merged_dict_size;
                 local_dict = merge_dict(recv_dict, recv_dict_size, local_dict, dict_size, &merged_dict_size, my_rank);
                 dict_size = merged_dict_size;
-                free(recv_dict);
             }else if(my_rank == sender){
                 MPI_Send(&dict_size, 1, MPI_UINT64_T, receiver, my_rank, MPI_COMM_WORLD);
                 for(int i_d=0; i_d < dict_size; i_d++){
@@ -328,7 +338,7 @@ int main(void)
 
     //Broadcast result to all process
     if(my_rank == 0){
-        // print_array(local_dict, dict_size);
+        //Send merge dict to all process
         for(int i=1; i<comm_sz; i++){
             MPI_Bcast(&dict_size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
             for(int i_d=0; i_d < dict_size; i_d++){
@@ -339,7 +349,9 @@ int main(void)
         }
     }
     else{
+        //Receive dict from master
         for(int i=1; i<comm_sz; i++){
+            free_table(local_dict, dict_size);
             MPI_Bcast(&dict_size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
             local_dict = malloc(dict_size*sizeof(char*));
             int s_w;
@@ -350,17 +362,21 @@ int main(void)
             }
         }
     }
+
+    //Compute the maximum lenght of sentence to build vector
     int max_sentence_size;
     MPI_Allreduce(&local_max_sen_size, &max_sentence_size, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
     
+    //Build vector for each file which is read at first step
     int** doc = build_local_vector(my_rank, local_dict, dict_size, local_sentence, sentence_size, number_sentence, max_sentence_size);
     
-    //Receive vector to store to file
+    //Send and receive vector to store to file
     if(my_rank == 0){
         printf("========= max_sentence_size = %d =========\n", max_sentence_size);
         for(int i=0; i<number_sentence; i++){
             save_vector_2file(doc[i], max_sentence_size, i*comm_sz);
         }
+        //At master receive vector from other process to save
         for(int i=1; i<comm_sz; i++){
             int num_recv_sen;
             MPI_Recv(&num_recv_sen, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -370,7 +386,7 @@ int main(void)
                 save_vector_2file(recv_sen, max_sentence_size, i+j*comm_sz);
             }
         }
-        //Save dictionary
+        //At master save dictionary
         FILE *fp;
         int iter_step = dict_size/comm_sz;
         for(int i=0; i<dict_size; i++){
@@ -387,7 +403,9 @@ int main(void)
             }
             fprintf(fp, "%s\t%d\n", local_dict[i], i);
         }
+        fclose(fp);
     }else{
+        //At other process, send vector of sentence to master
         MPI_Send(&number_sentence, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
         for(int i=0; i<number_sentence; i++){
             MPI_Send(doc[i], max_sentence_size, MPI_INT, 0, i, MPI_COMM_WORLD);
