@@ -9,13 +9,13 @@
 #include <inttypes.h>
 #include <limits.h>
 
-// const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data/";
-// const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
-// const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
+const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data/";
+const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
+const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
 
-const char* INPUT_DATA_FOLDER = "./data/";
-const char* VECTOR_OUTPUT_FOLDER = "./vector/";
-const char* DICT_OUTPUT_FOLDER = "./dict/";
+//const char* INPUT_DATA_FOLDER = "./data/";
+//const char* VECTOR_OUTPUT_FOLDER = "./vector/";
+//const char* DICT_OUTPUT_FOLDER = "./dict/";
 
 const char* TITLE_EXTENSION = "_title.txt";
 const char* ABSTRACT_EXTENSION = "_abstract.txt";
@@ -230,7 +230,7 @@ int main(void)
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
 
-    int num_file = 5;
+    int num_file = 1000;
     
     //Count number of file
     // if (my_rank == 0){
