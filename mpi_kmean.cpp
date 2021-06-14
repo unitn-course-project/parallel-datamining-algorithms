@@ -6,10 +6,21 @@
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
+#include <vector>
+#include <filesystem>
+using std::filesystem::directory_iterator;
+
 using namespace std;
+
 string inputFolderPath = "output/vector/";
 string inputFileType = ".data";
-
+int max_iterator = 1000;
+int number_of_element = 1000;
+int dimension = 300;
+int number_of_cluster = 4;
+int last_local_n = -1;
+string outputFileName = "mpi_kmean-4";
+vector<string> filenames;
 void print_arr(int rank, double *x, int size, char *msg)
 {
   printf("Print from rank %d message %s \n", rank, msg);
@@ -22,10 +33,10 @@ void print_arr(int rank, double *x, int size, char *msg)
   printf("End arr \n");
 }
 
-void write_arr(string filepath, int *arr, int size)
+void write_arr_bin(string filepath, int *arr, int size)
 {
 
-  ofstream file(filepath, ios::out | ios::binary | ios::ate);
+  ofstream file(filepath + ".bin", ios::out | ios::binary | ios::ate);
   if (file.is_open())
   {
     for (int i = 0; i < size; i++)
@@ -33,10 +44,28 @@ void write_arr(string filepath, int *arr, int size)
       file.write((char *)&arr[i], sizeof(int));
     }
     file.close();
-    cout << "save array to file " << filepath << endl;
+    cout << "save array to file " << filepath << ".bin" << endl;
+  }
+  else
+    cout << "save array to file error "
+         << ".bin" << endl;
+}
+void write_arr(string filepath, int *arr, int size)
+{
+
+  ofstream file(filepath + ".txt", ios::out);
+  if (file.is_open())
+  {
+    for (int i = 0; i < size; i++)
+    {
+      file << filenames[i] << " " << arr[i] << endl;
+    }
+    file.close();
+    cout << "save array to file " << filepath << ".txt" << endl;
   }
 
-  cout << "save array to file error " << endl;
+  else
+    cout << "save array to file error " << endl;
 }
 void print_arr_int(int rank, int *x, int size, char *msg)
 {
@@ -54,7 +83,7 @@ double *get_array_from_file(int rank, string fileName)
   streampos size;
   int *memblock;
 
-  ifstream file(inputFolderPath + fileName, ios::in | ios::binary | ios::ate);
+  ifstream file(fileName, ios::in | ios::binary | ios::ate);
   if (file.is_open())
   {
     size = file.tellg();
@@ -77,43 +106,44 @@ double *get_array_from_file(int rank, string fileName)
     return tmp;
   }
   else
-    cout << "Unable to open file";
+    cout << "Unable to open file " << fileName << endl;
   return NULL;
 }
 
-double *get_input(int rank, int *local_n, int *n, int *m, int comm_sz, MPI_Comm comm)
+double *get_input(int rank, int *local_n, int interval, int *n, int *m, int comm_sz, MPI_Comm comm)
 {
+  cout << "rank " << rank << " local_n " << *local_n << endl;
+  int count = 0;
   double *local_a = new double[*local_n * *m];
-  for (int i = 0; i < *local_n; i++)
+  int i = 0;
+  for (const auto &path : filenames)
   {
-    string fileName = to_string(rank * *local_n + i) + inputFileType;
-    cout << "print from rank " << rank << "read file" << fileName << endl;
-    double *tmp = get_array_from_file(rank, fileName);
-    if (tmp != NULL)
-      memcpy(&local_a[i * *m], tmp, *m * sizeof(double));
-  }
+    if (rank >= comm_sz - 1)
+    {
+      if ((count >= rank * interval) && (count < number_of_element))
+      {
+        cout << "print from rank " << rank << " read file " << path << endl;
+        double *tmp = get_array_from_file(rank, path);
+        if (tmp != NULL)
+          memcpy(&local_a[i * *m], tmp, *m * sizeof(double));
+        i++;
+        delete[] tmp;
+      }
+    }
+    else if (rank < comm_sz - 1)
+      if ((count >= rank * interval) && (count < (rank + 1) * interval))
+      {
+        cout << "print from rank " << rank << " read file " << path << endl;
+        double *tmp = get_array_from_file(rank, path);
+        if (tmp != NULL)
+          memcpy(&local_a[i * *m], tmp, *m * sizeof(double));
+        i++;
+      }
 
+    count++;
+  }
   //print_arr(rank, local_a, *m * *local_n, " input ");
   return local_a;
-}
-
-double *get_output(int rank, int n, int local_n, double local_y[], MPI_Comm comm)
-{
-  //printf("rank %d START get_out \n ",rank);
-  double *y = NULL;
-  if (rank == 0)
-  {
-    //printf("this is local_n %d",local_n);
-
-    y = (double *)malloc(n * sizeof(double));
-    MPI_Gather(local_y, local_n, MPI_DOUBLE, y, local_n, MPI_DOUBLE, 0, comm);
-  }
-  else
-  {
-    MPI_Gather(local_y, local_n, MPI_DOUBLE, y, local_n, MPI_DOUBLE, 0, comm);
-  }
-  //printf("rank %d END get_input \n ",rank);
-  return y;
 }
 
 double distance(double x[], double y[], int l_n)
@@ -138,7 +168,7 @@ void divVector(double x[], double dividend, int l_n)
     x[i] = x[i] / dividend;
   }
 }
-int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, int local_n, int comm_sz, MPI_Comm comm)
+int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, int interval, int local_n, int comm_sz, MPI_Comm comm)
 {
   //print_arr(rank, local_a, m * local_n, "start kmean");
   double global_mean[m * k];
@@ -251,88 +281,138 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
   }
   print_arr_int(rank, d_cluster, local_n, "d cluster");
   int *total_d_cluster = NULL;
+
   if (rank == 0)
   {
+    cout << " rank 0 " << n << endl;
     total_d_cluster = new int[n];
   }
-  MPI_Gather(&d_cluster, local_n, MPI_INT, total_d_cluster, local_n, MPI_INT, 0,
-             MPI_COMM_WORLD);
+  int displs[comm_sz];
+  int rcounts[comm_sz];
+  for (int i = 0; i < comm_sz; ++i)
+  {
+    displs[i] = i * interval;
+    rcounts[i] = interval;
+  }
+  rcounts[comm_sz - 1] = last_local_n;
+  MPI_Gatherv(&d_cluster, local_n, MPI_INT, total_d_cluster, rcounts, displs, MPI_INT, 0,
+              MPI_COMM_WORLD);
 
   if (rank == 0)
     print_arr(rank, global_mean, m * k, "");
   return total_d_cluster;
 }
-void show_usage(){
-  cout<<"Please use -h or --help to get information about argument" <<endl;
+void show_usage()
+{
+  cout << "Please use -h or --help to get information about argument" << endl;
 }
-void show_help(){
-  cout<<"Please use -h or --help to get information about argument" <<endl;
-  cout<<"-k (--cluster) number of cluster" <<endl;
-  cout<<"-n number of process" <<endl;
-  cout<<"-ne (--size) number of example, make sure this number is multiple of the process number" <<endl;
-  cout<<"-mi (--maxiterator) maxium of clustering steps" <<endl;
-  cout<<"-d (--dimension) dimension of input vector" <<endl;
-  cout<<"-inputFolderPath  path to inputer folder" <<endl;
-  cout<<"-inputFileType indicate the file should process" <<endl;
-  cout<<"-outputFileName indicate the output file name" <<endl;
+void show_help()
+{
+  cout << "Please use -h or --help to get information about argument" << endl;
+  cout << "-k (--cluster) number of cluster" << endl;
+  cout << "-n number of process" << endl;
+  cout << "-ne (--size) number of example, make sure this number is multiple of the process number" << endl;
+  cout << "-mi (--maxiterator) maxium of clustering steps" << endl;
+  cout << "-d (--dimension) dimension of input vector" << endl;
+  cout << "-inputFolderPath *  path to inputer folder" << endl;
+  cout << "-inputFileType * indicate the file should process" << endl;
+  cout << "-outputFileName indicate the output file name (only filename)" << endl;
 }
-void check_arguments(int argc, char **argv){
-  if (argc < 2) {
-        show_usage();
-      throw 1;
+void check_arguments(int argc, char **argv)
+{
+  if (argc < 2)
+  {
+    show_usage();
+    throw 1;
+  }
+}
+
+int get_number_of_element()
+{
+  int number_of_element = 0;
+  for (const auto &entry : directory_iterator(inputFolderPath))
+  {
+    string tmp = entry.path();
+    string delimiter = ".";
+    int pos = tmp.find(delimiter);
+    if (pos != string::npos)
+    {
+      string tail = tmp.substr(pos, tmp.length() - pos);
+      if (tail == inputFileType)
+      {
+        filenames.push_back(tmp);
+        number_of_element++;
+      }
     }
+  }
+  return number_of_element;
 }
 int main(int argc, char **argv)
 {
-  int max_iterator = 1000;
-  int number_of_element = 1000;
-  int dimension = 300;
-  int number_of_cluster = 4;
-  string outputFileName="mpi_kmean-4.bin";
-  try{
-    check_arguments(argc,argv);
+  try
+  {
+    check_arguments(argc, argv);
   }
-  catch (int e){
-    if (e==1)
-    cout<< "Not enough arguments!! " <<endl;
+  catch (int e)
+  {
+    if (e == 1)
+      cout << "Not enough arguments!! " << endl;
     else
-    cout <<" Error "<< e <<endl;
+      cout << " Error " << e << endl;
     return 1;
   }
-  int mandatory_field=0;
-  for (int i = 1; i < argc; ++i) {
-    string arg= argv[i];
-    if ((arg == "-h") || (arg == "--help")) {
+  int mandatory_field = 0;
+  int pNe = 0;
+  for (int i = 1; i < argc; ++i)
+  {
+    string arg = argv[i];
+    if ((arg == "-h") || (arg == "--help"))
+    {
       show_help();
     }
-    if ((arg == "-k") || (arg == "--cluster")) {
-      number_of_cluster=stoi(argv[i+1]);
+    if ((arg == "-k") || (arg == "--cluster"))
+    {
+      number_of_cluster = stoi(argv[i + 1]);
     }
-    if ((arg == "-ne") || (arg == "--size")) {
-      number_of_element=stoi(argv[i+1]);
+    if ((arg == "-ne") || (arg == "--size"))
+    {
+      number_of_element = stoi(argv[i + 1]);
+      pNe = 1;
+    }
+    if ((arg == "-mi") || (arg == "--maxiterator"))
+    {
+      max_iterator = stoi(argv[i + 1]);
+    }
+    if ((arg == "-d") || (arg == "--dimension"))
+    {
+      dimension = stoi(argv[i + 1]);
+    }
+    if ((arg == "-inputFolderPath") || (arg == "--inputFolderPath"))
+    {
+      inputFolderPath = argv[i + 1];
       mandatory_field++;
     }
-    if ((arg == "-mi") || (arg == "--maxiterator")) {
-      max_iterator=stoi(argv[i+1]);
+    if ((arg == "-inputFileType") || (arg == "--inputFileType"))
+    {
+      inputFileType = argv[i + 1];
+      mandatory_field++;
     }
-    if ((arg == "-d") || (arg == "--dimension")) {
-      dimension=stoi(argv[i+1]);
-    }
-    if ((arg == "-inputFolderPath") || (arg == "--inputFolderPath")) {
-      inputFolderPath=argv[i+1];
-    }
-    if ((arg == "-inputFileType") || (arg == "--inputFileType")) {
-      inputFileType=argv[i+1];
-    }
-    if ((arg == "-outputFileName") || (arg == "--outputFileName")) {
-      outputFileName=argv[i+1];
+    if ((arg == "-outputFileName") || (arg == "--outputFileName"))
+    {
+      outputFileName = argv[i + 1];
     }
   }
-  if (mandatory_field<1) {
-    cout<<"Please set value for mandatory field!"<< endl;
+  if (mandatory_field < 2)
+  {
+    cout << "Please set value for mandatory field!" << endl;
     return 1;
-  } 
+  }
   cout << "START" << endl;
+  if (pNe == 0)
+    number_of_element = get_number_of_element();
+  else
+    get_number_of_element();
+  cout << "number of elemement " << number_of_element << endl;
   int comm_sz;
   int my_rank;
   MPI_Init(NULL, NULL);
@@ -341,16 +421,41 @@ int main(int argc, char **argv)
   // Get the number of processes
 
   double *local_a = NULL;
-  int local_n = number_of_element / comm_sz;
-  local_a = get_input(my_rank, &local_n, &number_of_element, &dimension, comm_sz, MPI_COMM_WORLD);
+  int local_n;
+  int interval;
+  if (number_of_element % comm_sz == 0)
+  {
+    local_n = number_of_element / comm_sz;
+    interval = local_n;
+    last_local_n = local_n;
+  }
+  else
+  {
+    if (my_rank != (comm_sz - 1))
+    {
+      local_n = number_of_element / comm_sz + 1;
+      interval = local_n;
+    }
+    else
+    {
+      interval = number_of_element / comm_sz + 1;
+      local_n = number_of_element - (number_of_element / comm_sz + 1) * (comm_sz - 1);
+    }
+    last_local_n = number_of_element - (number_of_element / comm_sz + 1) * (comm_sz - 1);
+  }
+  local_a = get_input(my_rank, &local_n, interval, &number_of_element, &dimension, comm_sz, MPI_COMM_WORLD);
   //print_arr(my_rank, local_a, local_n * m, "");
-  int *total_d_cluster = kmean(max_iterator, my_rank, number_of_cluster, local_a, dimension, number_of_element, local_n, comm_sz, MPI_COMM_WORLD);
+  int *total_d_cluster = kmean(max_iterator, my_rank, number_of_cluster, local_a, dimension, number_of_element, interval, local_n, comm_sz, MPI_COMM_WORLD);
   if (my_rank == 0)
   {
     //print_arr_int(my_rank, total_d_cluster, number_of_element, " cluster per element");
     write_arr(outputFileName, total_d_cluster, number_of_element);
+    write_arr_bin(outputFileName, total_d_cluster, number_of_element);
   }
-  cout<<"END"<<endl;
+  if (my_rank == 0)
+    delete[] total_d_cluster;
+  delete[] local_a;
+  cout << "END" << endl;
   MPI_Finalize();
   return 0;
 }
