@@ -3,8 +3,9 @@
 #include<stdlib.h>
 #include<string.h>
 
-const int SENTENCE_SIZE = 6833;
-const int DICT_WORD_PER_FILE = 1434;
+const int SENTENCE_SIZE = 3443;
+const int DICT_WORD_PER_FILE = 4086;
+const int MAX_WORD_LEN = 500;
 
 int main(int argc, char** argv) {
     // FILE *fp_cluster;
@@ -21,9 +22,9 @@ int main(int argc, char** argv) {
     
     
     FILE *fp_result;
-    fp_result = fopen("./result_test.csv", "w");
+    fp_result = fopen("./result_test.txt", "w");
     fprintf(fp_result, "%s\n", "doc");
-    for(int i_f=0; i_f<5; i_f++){
+    for(int i_f=0; i_f<7; i_f++){
       // fprintf(fp_result, "%d\t", cluster[i_f]);
       FILE *fp;
       char file_index[sizeof(int)];
@@ -49,7 +50,7 @@ int main(int argc, char** argv) {
         // printf("Read dict_file %s\n", dict_file_name);
         fp_dict = fopen(dict_file_name, "r");
         char* word_;
-        char* word = malloc(50*sizeof(char));
+        char* word = malloc(MAX_WORD_LEN*sizeof(char));
         char ch;
         int cnt = 0;
         while((ch = fgetc(fp_dict)) != EOF){
@@ -59,7 +60,7 @@ int main(int argc, char** argv) {
             memcpy(word_, word, (cnt+1)*sizeof(char));
             // printf("Word = %s\n", word_);
             cnt = 0;
-            word = malloc(50*sizeof(char));
+            word = malloc(MAX_WORD_LEN*sizeof(char));
           }else if(ch == '\n'){
             word[cnt] = '\0';
             int word_index = atoi(word);
@@ -68,7 +69,7 @@ int main(int argc, char** argv) {
               fprintf(fp_result, "%s ", word_);
             }
             cnt = 0;
-            word = malloc(50*sizeof(char));
+            word = malloc(MAX_WORD_LEN*sizeof(char));
           }else{
             word[cnt] = ch;
             cnt++;
