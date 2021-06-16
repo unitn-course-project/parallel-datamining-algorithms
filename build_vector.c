@@ -12,19 +12,23 @@
 const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data_small/";
 const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
 const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
+const char* STOP_WORD_FILE_PATH = "/home/anhtu.phan/parallel-datamining-algorithms/english.stop.txt";
 
 // const char* INPUT_DATA_FOLDER = "/media/anhtu/046AAF9E6AAF8B4E/trento/archive/document_parses/txt_file/";
 // const char* INPUT_DATA_FOLDER = "./data/";
 // const char* VECTOR_OUTPUT_FOLDER = "./vector/";
 // const char* DICT_OUTPUT_FOLDER = "./dict/";
+// const char* STOP_WORD_FILE_PATH = "/home/anhtu/Project/trento/parallel-datamining-algorithms/english.stop.txt";
 
 const char* TITLE_EXTENSION = "_title.txt";
 const char* ABSTRACT_EXTENSION = "_abstract.txt";
 const char* BODY_EXTENSION = "_body.txt";
 const int MAX_WORD_LEN = 50;
+const int MIN_WORD_LEN = 3;
 const int MAX_SENTENCE_LEN = 1000000000;
 char* DOC_SEPARATION_CHAR = "$$$$$$";
-const int NUM_FILE_INPUT = 1000;
+const int NUM_FILE_INPUT = 100;
+
 
 
 void print_array(char** array, uint64_t size){
@@ -61,7 +65,7 @@ void free_table(char** table, uint64_t row_size){
 
 SimpleSet read_stop_words(){
     FILE *fp;
-    fp = fopen("./english.stop.txt", "r");
+    fp = fopen(STOP_WORD_FILE_PATH, "r");
     SimpleSet stop_words;
     set_init(&stop_words);
 
@@ -118,7 +122,7 @@ void read_file(const char* file_type, int file_number, int* i_sentence_size, Sim
         }
 
         if(ch == ' ' || ch == '\n'){
-            if(cnt != 0){
+            if(cnt >= MIN_WORD_LEN){
                 word[cnt] = '\0';
                 char* word_resized = realloc(word, (cnt+1)*sizeof(char));
                 
@@ -131,9 +135,9 @@ void read_file(const char* file_type, int file_number, int* i_sentence_size, Sim
                         set_add(dict, word_resized);
                     }
                 }
-                cnt = 0;
-                word = malloc(MAX_WORD_LEN*sizeof(char));
             }
+            cnt = 0;
+            word = malloc(MAX_WORD_LEN*sizeof(char));
         }else{
             //Just read alpha-bet and number
             if((ch >= 48 && ch <= 57) || (ch >= 97 && ch <= 122)){
@@ -142,7 +146,7 @@ void read_file(const char* file_type, int file_number, int* i_sentence_size, Sim
             }
         }
     }
-    if(cnt != 0){
+    if(cnt >= MIN_WORD_LEN){
         word[cnt] = '\0';
         char* word_resized = realloc(word, (cnt+1)*sizeof(char));
         if(set_contains(stop_words, word_resized) == SET_FALSE){
