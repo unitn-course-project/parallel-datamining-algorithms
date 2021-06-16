@@ -5,18 +5,25 @@
 #include<unistd.h>
 #include "set.c"
 
-const char* DICT_INPUT_PATH = "/home/anhtu/Project/trento/parallel-datamining-algorithms/dict/";
-const char* VECTOR_INPUT_PATH = "./cluster/";
+const char* DICT_INPUT_PATH = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
+const char* VECTOR_INPUT_PATH = "/home/anhtu.phan/parallel-datamining-algorithms/output/cluster/";
+
+// const char* DICT_INPUT_PATH = "/home/anhtu/Project/trento/parallel-datamining-algorithms/dict/";
+// const char* VECTOR_INPUT_PATH = "./cluster/";
+
+
 const int SENTENCE_SIZE = 339;
 const int DICT_SIZE = 371;
 const int DICT_WORD_PER_FILE = 92;
 const int MAX_WORD_LEN = 50;
 const int SUPPORT_THRES = 1;
 const int MAX_NUMBER_BASKET_SIZE = 5;
+const int NUM_FILE_INPUT = 5;
+const int CLUSTER = 0;
 
-void read_file(int my_rank, int num_file, int comm_sz, char* input_path, int** sentence){
+void read_file(int my_rank, int comm_sz, char* input_path, int** sentence){
     FILE *fp;
-    for(int i=my_rank; i<num_file; i+=comm_sz){
+    for(int i=my_rank; i<NUM_FILE_INPUT; i+=comm_sz){
         char i_f[sizeof(int)];
         sprintf(i_f, "%d", i);
         char buffer[strlen(input_path)+sizeof(int)+strlen(".data")];
@@ -126,19 +133,15 @@ int main(void){
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
 
-    int num_file = 5;
-    int cluster = 0;
-    MPI_Bcast(&num_file, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    
-    int num_sentence = ((num_file-1-my_rank)/comm_sz+1);
+    int num_sentence = ((NUM_FILE_INPUT-1-my_rank)/comm_sz+1);
     int** sentence = malloc(num_sentence*sizeof(int*));
 
     char i_c[sizeof(int)];
-    sprintf(i_c, "%d", cluster);
+    sprintf(i_c, "%d", CLUSTER);
     char buffer[strlen(VECTOR_INPUT_PATH)+sizeof(int)+strlen("/")];
     strcat(strcpy(buffer, VECTOR_INPUT_PATH), i_c);
     strcat(buffer, "/");
-    read_file(my_rank, num_file, comm_sz, buffer, sentence);
+    read_file(my_rank, comm_sz, buffer, sentence);
 
     int* local_support = malloc(DICT_SIZE*sizeof(int));
     for(int i=0; i<DICT_SIZE; i++){

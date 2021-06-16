@@ -9,14 +9,14 @@
 #include <inttypes.h>
 #include <limits.h>
 
-// const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data/";
-// const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
-// const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
+const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data/";
+const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
+const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
 
 // const char* INPUT_DATA_FOLDER = "/media/anhtu/046AAF9E6AAF8B4E/trento/archive/document_parses/txt_file/";
-const char* INPUT_DATA_FOLDER = "./data/";
-const char* VECTOR_OUTPUT_FOLDER = "./vector/";
-const char* DICT_OUTPUT_FOLDER = "./dict/";
+// const char* INPUT_DATA_FOLDER = "./data/";
+// const char* VECTOR_OUTPUT_FOLDER = "./vector/";
+// const char* DICT_OUTPUT_FOLDER = "./dict/";
 
 const char* TITLE_EXTENSION = "_title.txt";
 const char* ABSTRACT_EXTENSION = "_abstract.txt";
@@ -24,6 +24,7 @@ const char* BODY_EXTENSION = "_body.txt";
 const int MAX_WORD_LEN = 50;
 const int MAX_SENTENCE_LEN = 100000;
 char* DOC_SEPARATION_CHAR = "$$$$$$";
+const int NUM_FILE_INPUT = 5;
 
 
 void print_array(char** array, uint64_t size){
@@ -158,7 +159,7 @@ void read_file(const char* file_type, int file_number, int* i_sentence_size, Sim
 }
 
 
-void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, char** local_sentence, int* sentence_size, int* max_sentence_size, int* number_sentence){
+void build_local_dict(int my_rank, int comm_sz, SimpleSet *dict, char** local_sentence, int* sentence_size, int* max_sentence_size, int* number_sentence){
     
     set_init(dict);
     SimpleSet stop_words = read_stop_words();
@@ -168,7 +169,7 @@ void build_local_dict(int num_file, int my_rank, int comm_sz, SimpleSet *dict, c
     *number_sentence = 0;
     
     //Just read file base on rank
-    for(int i=my_rank; i<num_file; i+=comm_sz){
+    for(int i=my_rank; i<NUM_FILE_INPUT; i+=comm_sz){
         int i_sentence_size = 0;
         
         read_file(TITLE_EXTENSION, i, &i_sentence_size, dict, local_sentence, sentence_size, max_sentence_size, number_sentence, &stop_words);
@@ -260,17 +261,6 @@ int main(void)
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
 
-    int num_file = 5;
-    
-    //Count number of file
-    // if (my_rank == 0){
-    //     num_file = count_files(INPUT_DATA_FOLDER)/3;
-    //     printf("Number of file is: %d\n", num_file);
-    // }
-    
-    MPI_Bcast(&num_file, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-
     //Build dictionary and sentence of local process
     SimpleSet set_local_dict;
     set_init(&set_local_dict);
@@ -279,10 +269,8 @@ int main(void)
     int local_max_sen_size;
     char** local_sentence = malloc(MAX_SENTENCE_LEN*sizeof(char*));
     int number_sentence;
-    build_local_dict(num_file, my_rank, comm_sz, &set_local_dict, local_sentence, &sentence_size, &local_max_sen_size, &number_sentence);
-    printf("Rank %d local sentence: ", my_rank);
-    print_array(local_sentence, sentence_size);
-
+    build_local_dict(my_rank, comm_sz, &set_local_dict, local_sentence, &sentence_size, &local_max_sen_size, &number_sentence);
+    
     uint64_t dict_size;
     char** local_dict = set_to_array(&set_local_dict, &dict_size);
     set_destroy(&set_local_dict);
@@ -410,6 +398,7 @@ int main(void)
         //At master save dictionary
         FILE *fp;
         int iter_step = dict_size/comm_sz;
+        printf("========= dict_size = %ld word_per_dict_file = %d =========\n", dict_size, iter_step);
         for(int i=0; i<dict_size; i++){
             if(i % iter_step == 0){
                 if(i > 0){
