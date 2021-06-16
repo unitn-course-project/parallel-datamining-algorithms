@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>
@@ -9,16 +11,10 @@
 #include <inttypes.h>
 #include <limits.h>
 
-const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data_small/";
-const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
-const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
-const char* STOP_WORD_FILE_PATH = "/home/anhtu.phan/parallel-datamining-algorithms/english.stop.txt";
-
-// const char* INPUT_DATA_FOLDER = "/media/anhtu/046AAF9E6AAF8B4E/trento/archive/document_parses/txt_file/";
-// const char* INPUT_DATA_FOLDER = "./data/";
-// const char* VECTOR_OUTPUT_FOLDER = "./vector/";
-// const char* DICT_OUTPUT_FOLDER = "./dict/";
-// const char* STOP_WORD_FILE_PATH = "/home/anhtu/Project/trento/parallel-datamining-algorithms/english.stop.txt";
+char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data_small/";
+char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
+char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
+char* STOP_WORD_FILE_PATH = "/home/anhtu.phan/parallel-datamining-algorithms/english.stop.txt";
 
 const char* TITLE_EXTENSION = "_title.txt";
 const char* ABSTRACT_EXTENSION = "_abstract.txt";
@@ -27,16 +23,8 @@ const int MAX_WORD_LEN = 50;
 const int MIN_WORD_LEN = 3;
 const int MAX_SENTENCE_LEN = 1000000000;
 char* DOC_SEPARATION_CHAR = "$$$$$$";
-const int NUM_FILE_INPUT = 100;
+int NUM_FILE_INPUT = 100;
 
-
-
-void print_array(char** array, uint64_t size){
-    for(int i=0; i<size; i++){
-        printf("%s ", array[i]);
-    }
-    printf("\n");
-}
 
 static int fastlog2(uint32_t v) {
     // http://graphics.stanford.edu/~seander/bithacks.html
@@ -258,8 +246,30 @@ int** build_local_vector(int rank, char** local_dict, int dict_size, char** sent
 }
 
 
-int main(void)
+void construct_param(int argc, char **argv){
+    for(int i=1; i<argc; ++i){
+        char* arg = argv[i];
+        if(strcmp(arg, "-inputDataFolder") == 0 || strcmp(arg, "--inputDataFolder") == 0){
+            INPUT_DATA_FOLDER = argv[i+1];
+        }else if(strcmp(arg, "-vectorOutputFolder") == 0 || strcmp(arg, "--vectorOutputFolder") == 0){
+            VECTOR_OUTPUT_FOLDER = argv[i+1];
+            mkdir(VECTOR_OUTPUT_FOLDER, 0777);
+        }else if(strcmp(arg, "-dictOutputFolder") == 0 || strcmp(arg, "--dictOutputFolder") == 0){
+            DICT_OUTPUT_FOLDER = argv[i+1];
+            mkdir(DICT_OUTPUT_FOLDER, 0777);
+        }else if(strcmp(arg, "-stopWordFilePath") == 0 || strcmp(arg, "--stopWordFilePath") == 0){
+            STOP_WORD_FILE_PATH = argv[i+1];
+        }else if(strcmp(arg, "-numFileInput") == 0 || strcmp(arg, "--numFileInput") == 0){
+            NUM_FILE_INPUT = atoi(argv[i+1]);
+        }
+    }
+}
+
+
+int main(int argc, char **argv)
 {
+    construct_param(argc, argv);
+
     int my_rank, comm_sz;
     MPI_Init(NULL, NULL);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);

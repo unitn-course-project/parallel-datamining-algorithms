@@ -1,10 +1,13 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+
 namespace fs = std::filesystem;
 using namespace std;
 string cluster_path = "cluster/";
 string cluster_file = "mpi_kmean.txt";
+int num_cluster = 20;
+
 void show_help()
 {
   cout << "Please use -h or --help to get information about argument" << endl;
@@ -30,12 +33,24 @@ int main(int argc, char **argv)
       cluster_file = argv[i + 1];
       mandatory_field++;
     }
+    if ((arg == "-numCluster") || (arg == "--numCluster"))
+    {
+      num_cluster = atoi(argv[i + 1]);
+      mandatory_field++;
+    }
   }
-  if (mandatory_field < 1)
+  
+  if (mandatory_field < 2)
   {
     cout << "Please set value for mandatory field!" << endl;
     return 1;
   }
+  
+  int num_file[num_cluster];
+  for(int i=0; i<num_cluster; i++){
+    num_file[i] = 0;
+  }
+
   ifstream file(cluster_file, ios::in);
   if (file.is_open())
   {
@@ -60,7 +75,8 @@ int main(int argc, char **argv)
           filename = pos;
         cout << "file name " << filename << endl;
         fs::create_directories(cluster_path + cluster);
-        fs::copy(path, cluster_path + cluster + filename);
+        fs::copy(path, cluster_path + cluster + std::to_string(num_file[stoi(cluster)]));
+        num_file[stoi(cluster)]++;
       }
     }
   }

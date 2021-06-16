@@ -5,21 +5,17 @@
 #include<unistd.h>
 #include "set.c"
 
-const char* DICT_INPUT_PATH = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
-const char* VECTOR_INPUT_PATH = "/home/anhtu.phan/parallel-datamining-algorithms/output/cluster/";
+char* DICT_INPUT_PATH = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
+char* VECTOR_INPUT_PATH = "/home/anhtu.phan/parallel-datamining-algorithms/output/cluster/";
 
-// const char* DICT_INPUT_PATH = "/home/anhtu/Project/trento/parallel-datamining-algorithms/dict/";
-// const char* VECTOR_INPUT_PATH = "./cluster/";
-
-
-const int SENTENCE_SIZE = 339;
-const int DICT_SIZE = 371;
-const int DICT_WORD_PER_FILE = 92;
+int SENTENCE_SIZE = 339;
+int DICT_SIZE = 371;
+int DICT_WORD_PER_FILE = 92;
 const int MAX_WORD_LEN = 50;
-const int SUPPORT_THRES = 1;
-const int MAX_NUMBER_BASKET_SIZE = 5;
-const int NUM_FILE_INPUT = 5;
-const int CLUSTER = 0;
+int SUPPORT_THRES = 1;
+int MAX_NUMBER_BASKET_SIZE = 5;
+int NUM_FILE_INPUT = 5;
+int CLUSTER = 0;
 
 void read_file(int my_rank, int comm_sz, char* input_path, int** sentence){
     FILE *fp;
@@ -126,8 +122,35 @@ char* get_word_from_dict(int word_id){
     return NULL;
 }
 
+void construct_param(int argc, char **argv){
 
-int main(void){
+    for(int i=1; i<argc; ++i){
+        char* arg = argv[i];
+        if(strcmp(arg, "-dictInputFolder") == 0 || strcmp(arg, "--dictInputFolder") == 0){
+            DICT_INPUT_PATH = argv[i+1];
+        }else if(strcmp(arg, "-vectorInputFolder") == 0 || strcmp(arg, "--vectorInputFolder") == 0){
+            VECTOR_INPUT_PATH = argv[i+1];
+        }else if(strcmp(arg, "-sentenceSize") == 0 || strcmp(arg, "--sentenceSize") == 0){
+            SENTENCE_SIZE = atoi(argv[i+1]);
+        }else if(strcmp(arg, "-dictSize") == 0 || strcmp(arg, "--dictSize") == 0){
+            DICT_SIZE = atoi(argv[i+1]);
+        }else if(strcmp(arg, "-dictWordPerFile") == 0 || strcmp(arg, "--dictWordPerFile") == 0){
+            DICT_WORD_PER_FILE = atoi(argv[i+1]);
+        }else if(strcmp(arg, "-supportThres") == 0 || strcmp(arg, "--supportThres") == 0){
+            SUPPORT_THRES = atoi(argv[i+1]);
+        }else if(strcmp(arg, "-maxNumberBasketSize") == 0 || strcmp(arg, "--maxNumberBasketSize") == 0){
+            MAX_NUMBER_BASKET_SIZE = atoi(argv[i+1]);
+        }else if(strcmp(arg, "-numFileInput") == 0 || strcmp(arg, "--numFileInput") == 0){
+            NUM_FILE_INPUT = atoi(argv[i+1]);
+        }else if(strcmp(arg, "-clusterId") == 0 || strcmp(arg, "--clusterId") == 0){
+            CLUSTER = atoi(argv[i+1]);
+        }
+    }
+}
+
+int main(int argc, char **argv){
+    construct_param(argc, argv);
+    // printf("Params %s %s %d %d %d %d %d %d %d\n", DICT_INPUT_PATH, VECTOR_INPUT_PATH, SENTENCE_SIZE, DICT_SIZE, DICT_WORD_PER_FILE, SUPPORT_THRES, MAX_NUMBER_BASKET_SIZE, NUM_FILE_INPUT, CLUSTER);
     int my_rank, comm_sz;
     MPI_Init(NULL, NULL);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
