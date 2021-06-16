@@ -5,10 +5,14 @@
 #include<unistd.h>
 #include "set.c"
 
+const char* DICT_INPUT_PATH = "/home/anhtu/Project/trento/parallel-datamining-algorithms/dict/";
 const char* VECTOR_INPUT_PATH = "./cluster/";
-const int SENTENCE_SIZE = 406;
-const int DICT_SIZE = 478;
-const int SUPPORT_THRES = 2;
+const int SENTENCE_SIZE = 339;
+const int DICT_SIZE = 371;
+const int DICT_WORD_PER_FILE = 92;
+const int MAX_WORD_LEN = 50;
+const int SUPPORT_THRES = 1;
+const int MAX_NUMBER_BASKET_SIZE = 5;
 
 void read_file(int my_rank, int num_file, int comm_sz, char* input_path, int** sentence){
     FILE *fp;
@@ -57,14 +61,10 @@ void print_array(int** arr, int row, int col){
 
 int* merge_array(int* src, int* dst, int size){
     int* result = malloc((size+1)*sizeof(int));
-    printf("Merge [");
     for(int i=0; i<size; i++){
-        printf("%d ", src[i]);
         result[i] = src[i];
     }
-    printf("] with [");
     for(int i=0; i<size; i++){
-        printf("%d ", dst[i]);
         int check = 0;
         for(int j=0; j<size; j++){
             if (dst[i] == result[i])
@@ -75,13 +75,50 @@ int* merge_array(int* src, int* dst, int size){
             break;
         }
     }
-    printf("] to [");
-    for(int i=0; i<size+1; i++){
-        printf("%d ", result[i]);
-    }
-    printf("]\n");
     return result;
 }
+
+
+char* get_word_from_dict(int word_id){
+    int dict_file = word_id/DICT_WORD_PER_FILE;
+    FILE *fp_dict;
+    char file_dict_index[sizeof(int)];
+    sprintf(file_dict_index, "%d", dict_file);
+    char dict_file_name[strlen(DICT_INPUT_PATH)+sizeof(int)+strlen(".txt")];
+    strcat(strcpy(dict_file_name, DICT_INPUT_PATH), file_dict_index);
+    strcat(dict_file_name, ".txt");
+    fp_dict = fopen(dict_file_name, "r");
+    char* word_;
+    char* word = malloc(MAX_WORD_LEN*sizeof(char));
+    char ch;
+    int cnt = 0;
+    while((ch = fgetc(fp_dict)) != EOF){
+        if(ch == '\t'){
+            word[cnt] ='\0';
+            word_ = malloc((cnt+1)*sizeof(char));
+            memcpy(word_, word, (cnt+1)*sizeof(char));
+            // printf("Word = %s\n", word_);
+            cnt = 0;
+            word = malloc(MAX_WORD_LEN*sizeof(char));
+        }else if(ch == '\n'){
+            word[cnt] = '\0';
+            int word_index = atoi(word);
+            // printf("Word index = %d\n", word_index);
+            if(word_index == word_id){
+                fclose(fp_dict);
+                return word_;
+            }
+            cnt = 0;
+            word = malloc(MAX_WORD_LEN*sizeof(char));
+        }else{
+            word[cnt] = ch;
+            cnt++;
+        }
+    }
+    fclose(fp_dict);
+    return NULL;
+}
+
 
 int main(void){
     int my_rank, comm_sz;
@@ -89,7 +126,7 @@ int main(void){
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
 
-    int num_file = 8;
+    int num_file = 5;
     int cluster = 0;
     MPI_Bcast(&num_file, 1, MPI_INT, 0, MPI_COMM_WORLD);
     
@@ -103,11 +140,11 @@ int main(void){
     strcat(buffer, "/");
     read_file(my_rank, num_file, comm_sz, buffer, sentence);
 
-    int local_support[DICT_SIZE];
+    int* local_support = malloc(DICT_SIZE*sizeof(int));
     for(int i=0; i<DICT_SIZE; i++){
         local_support[i] = 0;
     }
-
+    
     //Count 1-item
     for(int i=0; i<num_sentence; i++){
         if(sentence[i] != NULL){
@@ -127,33 +164,45 @@ int main(void){
         }
     }
 
-    int support[DICT_SIZE];
+    int* support = malloc(DICT_SIZE*sizeof(int));
     MPI_Allreduce(local_support, support, DICT_SIZE, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     int number_input = DICT_SIZE;
-    int** input_candidate = malloc(DICT_SIZE*sizeof(int*));
+    int** prev_items = malloc(DICT_SIZE*sizeof(int*));
     for(int i=0; i<DICT_SIZE; i++){
-        input_candidate[i] = malloc(1*sizeof(int));
-        *input_candidate[i] = i;
+        prev_items[i] = malloc(1*sizeof(int));
+        *prev_items[i] = i;
     }
 
-    for(int basket_size=2; basket_size<3; basket_size++){
-        //Construct candidate
+    FILE *fp_result;
+    if(my_rank == 0){
+        fp_result = fopen("./apriori.txt", "w");
+    }
+    
+    for(int basket_size=2; basket_size<MAX_NUMBER_BASKET_SIZE; basket_size++){
+        fprintf(fp_result, "========= Frequent %d word =========\n", basket_size-1);
+        //Filter L(k-1) candidate 
         int** candidate = malloc(number_input*sizeof(int*));
         int number_candidate = 0;
         for(int i=0; i<number_input; i++){
             if(support[i] > SUPPORT_THRES){
                 candidate[number_candidate] = malloc((basket_size-1)*sizeof(int));
-                memcpy(candidate[number_candidate], input_candidate[i], (basket_size-1)*sizeof(int));
+                memcpy(candidate[number_candidate], prev_items[i], (basket_size-1)*sizeof(int));
+                //Write result
+                if(my_rank == 0){
+                    for(int i_p=0; i_p<(basket_size-1); i_p++){
+                        char* word = get_word_from_dict(prev_items[i][i_p]);
+                        fprintf(fp_result, "%s ", word);
+                    }
+                    fprintf(fp_result, "-> %d\n", support[i]);
+                }
                 number_candidate++;
             }
         }
         candidate = realloc(candidate, number_candidate*sizeof(int*));
-        free_table(input_candidate, number_input);
-        if(my_rank == 0){
-            printf("===== CANDIDATE with size =%d =====\n", number_candidate);
-            print_array(candidate, number_candidate, basket_size-1);
-        }
+        free_table(prev_items, number_input);
         
+
+        //Construct L(k) candidate
         int number_next_candidate = (number_candidate*(number_candidate-1))/2;
         int** next_candidate = malloc(number_next_candidate*sizeof(int*));
         int i_next = 0;
@@ -164,11 +213,44 @@ int main(void){
                 i_next++;
             }
         }
-        if(my_rank == 0){
-            printf("===== NEXT CANDIDATE with size =%d =====\n", number_next_candidate);
-            print_array(next_candidate, number_next_candidate, basket_size);
+
+        //Count support
+        free(local_support);
+        local_support = malloc(number_next_candidate*sizeof(int));
+        for(int i=0; i<number_next_candidate; i++){
+            local_support[i] = 0;
         }
+
+        //Count k-item
+        for(int i_c=0; i_c<number_next_candidate; i_c++){
+            for(int i=0; i<num_sentence; i++){
+                if(sentence[i] != NULL){
+                    int check = 0;
+                    for(int i_t=0; i_t<basket_size; i_t++){
+                        for(int j=0; j<SENTENCE_SIZE; j++){
+                            if(sentence[i][j] == -1)
+                                break;  
+                            if(sentence[i][j] == next_candidate[i_c][i_t]){
+                                check++;
+                                break;
+                            }
+                        }
+                    }
+                    if(check == basket_size)
+                        local_support[i_c] += 1;
+                }
+            }
+        }
+    
+        free(support);
+        support = malloc(number_next_candidate*sizeof(int));
+        MPI_Allreduce(local_support, support, number_next_candidate, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    
+        prev_items = next_candidate;
+        number_input = number_next_candidate;
     }
+
+    fclose(fp_result);
 
     MPI_Finalize();
     return 0;
