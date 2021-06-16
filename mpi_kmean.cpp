@@ -6,6 +6,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
+#include <float.h>
 #include <vector>
 #include <filesystem>
 using std::filesystem::directory_iterator;
@@ -203,7 +204,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     //print_arr(rank, global_mean, m * k, "global mean");
     for (int i = 0; i < local_n; i++)
     {
-      double min_distance = 10000000;
+      double min_distance = DBL_MAX;
       int cluster_index = -1;
       for (int j = 0; j < k; j++)
       {
