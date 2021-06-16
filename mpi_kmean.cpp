@@ -169,6 +169,25 @@ void divVector(double x[], double dividend, int l_n)
     x[i] = x[i] / dividend;
   }
 }
+
+/*------------------------------------------------------------------
+ * Function:    kmean
+ * Purpose:     Clustering examples to k cluster
+ * Input args:  
+ *    max_iterator: maximum iterator of clustering process
+ *    rank: rank of current process 
+ *    k: number of cluster
+ *    local_a : local examples
+ *    m : dimention of example
+ *    n : total number of examples
+ *    interval : number of examples for each process except the last process
+ *    local_n : actual number of examples for current process
+ *    com_sz : number of process
+ *    comm : MPI_Comm
+ * Return val:
+ *    total_d_cluster: an array of  cluster with length n indicate example i belong to cluster[i]  
+ */
+
 int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, int interval, int local_n, int comm_sz, MPI_Comm comm)
 {
   //print_arr(rank, local_a, m * local_n, "start kmean");
