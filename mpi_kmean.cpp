@@ -191,8 +191,10 @@ void divVector(double x[], double dividend, int l_n)
 int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, int interval, int local_n, int comm_sz, MPI_Comm comm)
 {
   //print_arr(rank, local_a, m * local_n, "start kmean");
+  /*
+   *  init global mean 
+   */
   double global_mean[m * k];
-
   memset(global_mean, 0, sizeof global_mean);
   if (rank == 0)
     for (int i = 0; i < k; i++)
@@ -206,6 +208,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
   {
 
     printf("rank %d iterator %d \n", rank, iterator);
+    // broadcast global mean
     MPI_Bcast(global_mean, k * m, MPI_DOUBLE, 0, comm);
     int xd = 0;
     // check stop criteria
@@ -218,9 +221,10 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
         }
     if (xd == 0 || iterator > max_iterator)
       break;
+
+    // map example to cluster
     int d_cluster[local_n];
     int use_cluster[k];
-
     memset(use_cluster, 0, sizeof use_cluster);
     //print_arr(rank, global_mean, m * k, "global mean");
     for (int i = 0; i < local_n; i++)
@@ -240,8 +244,10 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
       use_cluster[cluster_index] = 1;
     }
     //printf("rank %d done found cluster process \n", rank);
-    double local_mean[k * m];
 
+    // recaculate local mean
+
+    double local_mean[k * m];
     memset(local_mean, 0, sizeof global_mean);
     int number_elm[k];
     memset(number_elm, 0, sizeof number_elm);
@@ -256,6 +262,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     {
       divVector(&local_mean[i * m], number_elm[i], m);
     }
+    // check if cluster isn't update in this process
     for (int i = 0; i < k; i++)
     {
       if (use_cluster[i] == 0)
@@ -264,8 +271,13 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     }
     //printf("rank %d done calculate local mean \n", rank);
     //print_arr(rank, local_mean, m * k, "local mean");
+
+    // update local mean to rank 0
     if (rank != 0)
       MPI_Send(local_mean, k * m, MPI_DOUBLE, 0, 0, comm);
+    
+    // recalculate global mean
+
     memcpy(old_global_mean, global_mean, sizeof(global_mean));
     memset(global_mean, 0, sizeof global_mean);
     addVector(global_mean, local_mean, k * m);
@@ -284,6 +296,9 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     //printf("rank %d done propagate local mean", rank);
     iterator++;
   }
+
+  // calculate cluster for local examples
+
   int d_cluster[local_n];
   //print_arr(rank, global_mean, m * k, "global mean");
   for (int i = 0; i < local_n; i++)
@@ -301,13 +316,16 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     }
     d_cluster[i] = cluster_index;
   }
-  print_arr_int(rank, d_cluster, local_n, "d cluster");
+  //print_arr_int(rank, d_cluster, local_n, "d cluster");
   int *total_d_cluster = NULL;
 
   if (rank == 0)
   {
     total_d_cluster = new int[n];
   }
+
+  // get global cluster array
+
   int displs[comm_sz];
   int rcounts[comm_sz];
   for (int i = 0; i < comm_sz; ++i)
@@ -319,8 +337,8 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
   MPI_Gatherv(&d_cluster, local_n, MPI_INT, total_d_cluster, rcounts, displs, MPI_INT, 0,
               MPI_COMM_WORLD);
 
-  if (rank == 0)
-    print_arr(rank, global_mean, m * k, "");
+  //if (rank == 0)
+  //  print_arr(rank, global_mean, m * k, "");
   return total_d_cluster;
 }
 void show_usage()
