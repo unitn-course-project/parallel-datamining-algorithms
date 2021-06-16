@@ -208,12 +208,14 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     printf("rank %d iterator %d \n", rank, iterator);
     MPI_Bcast(global_mean, k * m, MPI_DOUBLE, 0, comm);
     int xd = 0;
-    for (int i = 0; i < m * k; i++)
-      if (global_mean[i] != old_global_mean[i])
-      {
-        xd = 1;
-        break;
-      }
+    // check stop criteria
+    if (iterator > 0)
+      for (int i = 0; i < m * k; i++)
+        if (global_mean[i] != old_global_mean[i])
+        {
+          xd = 1;
+          break;
+        }
     if (xd == 0 || iterator > max_iterator)
       break;
     int d_cluster[local_n];
@@ -286,7 +288,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
   //print_arr(rank, global_mean, m * k, "global mean");
   for (int i = 0; i < local_n; i++)
   {
-    double min_distance = 10000000;
+    double min_distance = DBL_MAX;
     int cluster_index = -1;
     for (int j = 0; j < k; j++)
     {
@@ -304,7 +306,6 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
 
   if (rank == 0)
   {
-    cout << " rank 0 " << n << endl;
     total_d_cluster = new int[n];
   }
   int displs[comm_sz];
