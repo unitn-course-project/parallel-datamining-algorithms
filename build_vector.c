@@ -9,7 +9,7 @@
 #include <inttypes.h>
 #include <limits.h>
 
-const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data/";
+const char* INPUT_DATA_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/data_small/";
 const char* VECTOR_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/vector/";
 const char* DICT_OUTPUT_FOLDER = "/home/anhtu.phan/parallel-datamining-algorithms/output/dict/";
 
@@ -22,9 +22,9 @@ const char* TITLE_EXTENSION = "_title.txt";
 const char* ABSTRACT_EXTENSION = "_abstract.txt";
 const char* BODY_EXTENSION = "_body.txt";
 const int MAX_WORD_LEN = 50;
-const int MAX_SENTENCE_LEN = 100000;
+const int MAX_SENTENCE_LEN = 1000000000;
 char* DOC_SEPARATION_CHAR = "$$$$$$";
-const int NUM_FILE_INPUT = 100000;
+const int NUM_FILE_INPUT = 1000;
 
 
 void print_array(char** array, uint64_t size){
