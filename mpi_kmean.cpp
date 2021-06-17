@@ -131,19 +131,19 @@ double *get_input(int rank, int *local_n, int *n, int *m, int comm_sz, MPI_Comm 
 {
   cout << "rank " << rank << " local_n " << *local_n << endl;
   int start = 0;
-  for (int j = 0; j <= rank; j++)
+  for (int j = 0; j < rank; j++)
   {
     if (j < number_of_element % comm_sz)
-      start = start +  (number_of_element/comm_sz + 1);
+      start = start + (number_of_element / comm_sz + 1);
     else
-      start = start +  (number_of_element/comm_sz);
+      start = start + (number_of_element / comm_sz);
   }
   int finish = 0;
-  if ((rank + 1) < number_of_element % comm_sz)
+  if ((rank ) < number_of_element % comm_sz)
     finish = start + number_of_element / comm_sz + 1;
   else
     finish = start + number_of_element / comm_sz;
-  cout<<"rank "<<rank<< " start, finish "<< start<<","<<finish<<endl;
+  cout << "rank " << rank << " start, finish " << start << "," << finish << endl;
   int count = 0;
   double *local_a = new double[*local_n * *m];
   int i = 0;
