@@ -75,7 +75,7 @@ void write_arr(string filepath, double *arr, int size)
   {
     for (int i = 0; i < size; i++)
     {
-      file << arr[i] << " ";
+      file << std::fixed<<std::setprecision(5) << arr[i] << " ";
     }
     file.close();
     cout << "save array to file " << filepath << ".txt" << endl;
@@ -160,7 +160,7 @@ double *get_input(int rank, int *local_n, int *n, int *m, int comm_sz, MPI_Comm 
     }
     count++;
   }
-  //print_arr(rank, local_a, *m * *local_n, " input ");
+ // print_arr(rank, local_a, *m * *local_n, " input ");
   return local_a;
 }
 
@@ -210,7 +210,6 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
   /*
    *  init global mean 
    */
-  cout<<"DBL_MAX is "<< DBL_MAX<<endl;
   double global_mean[m * k];
   memset(global_mean, 0, sizeof global_mean);
   if (rank == 0)
@@ -221,22 +220,24 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
       }
   int iterator = 0;
   double old_global_mean[m * k];
+  // broadcast global mean
+  MPI_Bcast(global_mean, k * m, MPI_DOUBLE, 0, comm);
   while (1)
   {
-
     printf("rank %d iterator %d \n", rank, iterator);
-    // broadcast global mean
-    MPI_Bcast(global_mean, k * m, MPI_DOUBLE, 0, comm);
     int xd = 0;
     // check stop criteria
-    if (iterator > 0){
+    if (iterator > 0)
+    {
       for (int i = 0; i < m * k; i++)
         if (global_mean[i] != old_global_mean[i])
         {
           xd = 1;
           break;
-        }}
-	else xd=1;
+        }
+    }
+    else
+      xd = 1;
     if (xd == 0 || iterator > max_iterator)
       break;
 
@@ -290,27 +291,16 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     //printf("rank %d done calculate local mean \n", rank);
     //print_arr(rank, local_mean, m * k, "local mean");
 
-    // update local mean to rank 0
-    if (rank != 0)
-      MPI_Send(local_mean, k * m, MPI_DOUBLE, 0, 0, comm);
-
     // recalculate global mean
-
     memcpy(old_global_mean, global_mean, sizeof(global_mean));
     memset(global_mean, 0, sizeof global_mean);
-    addVector(global_mean, local_mean, k * m);
-    if (rank == 0)
-    {
-      for (int i = 1; i < comm_sz; i++)
-      {
-        //printf("rank %d wait recv from process %d \n", rank, i);
-        double local_mean_tmp[m * k];
-        MPI_Recv(local_mean_tmp, m * k, MPI_DOUBLE, i, 0, comm, MPI_STATUS_IGNORE);
-        addVector(global_mean, local_mean_tmp, k * m);
-      }
-      for (int i = 0; i < m * k; i++)
-        global_mean[i] = global_mean[i] / comm_sz;
-    }
+    //print_arr(rank,local_mean,m*k,"local mean");
+
+    for (int i = 0; i < m * k; i++)
+      local_mean[i] = local_mean[i] / comm_sz;
+    MPI_Allreduce(local_mean, global_mean, k * m, MPI_DOUBLE, MPI_SUM,  comm);
+
+    //print_arr(rank,global_mean,m*k,"global mean");
     //printf("rank %d done propagate local mean", rank);
     iterator++;
   }
@@ -351,18 +341,18 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     if (i == 0)
       displs[0] = 0;
     else
-      displs[i] = displs[i-1]+ rcounts[i - 1];
+      displs[i] = displs[i - 1] + rcounts[i - 1];
     if (i < (n % comm_sz))
-      rcounts[i] = n/comm_sz + 1;
+      rcounts[i] = n / comm_sz + 1;
     else
-      rcounts[i] = n/comm_sz;
+      rcounts[i] = n / comm_sz;
   }
   MPI_Gatherv(&d_cluster, local_n, MPI_INT, total_d_cluster, rcounts, displs, MPI_INT, 0,
               MPI_COMM_WORLD);
 
   if (rank == 0)
     //print_arr(rank, global_mean, m * k, "");
-    write_arr("k-mean-global-mean",global_mean,m*k);
+    write_arr("k-mean-global-mean", global_mean, m * k);
   return total_d_cluster;
 }
 void show_usage()
