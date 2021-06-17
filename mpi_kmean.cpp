@@ -50,7 +50,7 @@ void write_arr_bin(string filepath, int *arr, int size)
     cout << "save array to file error "
          << ".bin" << endl;
 }
-void write_arr(string filepath, int *arr, int size)
+void write_arr_map_cluster(string filepath, int *arr, int size)
 {
 
   ofstream file(filepath + ".txt", ios::out);
@@ -59,6 +59,23 @@ void write_arr(string filepath, int *arr, int size)
     for (int i = 0; i < size; i++)
     {
       file << filenames[i] << " " << arr[i] << endl;
+    }
+    file.close();
+    cout << "save array to file " << filepath << ".txt" << endl;
+  }
+
+  else
+    cout << "save array to file error " << endl;
+}
+void write_arr(string filepath, double *arr, int size)
+{
+
+  ofstream file(filepath + ".txt", ios::out);
+  if (file.is_open())
+  {
+    for (int i = 0; i < size; i++)
+    {
+      file << arr[i] << " ";
     }
     file.close();
     cout << "save array to file " << filepath << ".txt" << endl;
@@ -117,16 +134,16 @@ double *get_input(int rank, int *local_n, int *n, int *m, int comm_sz, MPI_Comm 
   for (int j = 0; j <= rank; j++)
   {
     if (j < number_of_element % comm_sz)
-      start = start + *m * (number_of_element/comm_sz + 1);
+      start = start +  (number_of_element/comm_sz + 1);
     else
-      start = start + (*m * (number_of_element/comm_sz));
+      start = start +  (number_of_element/comm_sz);
   }
   int finish = 0;
   if ((rank + 1) < number_of_element % comm_sz)
     finish = start + number_of_element / comm_sz + 1;
   else
     finish = start + number_of_element / comm_sz;
-
+  cout<<"rank "<<rank<< " start, finish "<< start<<","<<finish<<endl;
   int count = 0;
   double *local_a = new double[*local_n * *m];
   int i = 0;
@@ -193,6 +210,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
   /*
    *  init global mean 
    */
+  cout<<"DBL_MAX is "<< DBL_MAX<<endl;
   double global_mean[m * k];
   memset(global_mean, 0, sizeof global_mean);
   if (rank == 0)
@@ -211,13 +229,14 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     MPI_Bcast(global_mean, k * m, MPI_DOUBLE, 0, comm);
     int xd = 0;
     // check stop criteria
-    if (iterator > 0)
+    if (iterator > 0){
       for (int i = 0; i < m * k; i++)
         if (global_mean[i] != old_global_mean[i])
         {
           xd = 1;
           break;
-        }
+        }}
+	else xd=1;
     if (xd == 0 || iterator > max_iterator)
       break;
 
@@ -332,7 +351,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     if (i == 0)
       displs[0] = 0;
     else
-      displs[i] += rcounts[i - 1];
+      displs[i] = displs[i-1]+ rcounts[i - 1];
     if (i < (n % comm_sz))
       rcounts[i] = n/comm_sz + 1;
     else
@@ -341,8 +360,9 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
   MPI_Gatherv(&d_cluster, local_n, MPI_INT, total_d_cluster, rcounts, displs, MPI_INT, 0,
               MPI_COMM_WORLD);
 
-  //if (rank == 0)
-  //  print_arr(rank, global_mean, m * k, "");
+  if (rank == 0)
+    //print_arr(rank, global_mean, m * k, "");
+    write_arr("k-mean-global-mean",global_mean,m*k);
   return total_d_cluster;
 }
 void show_usage()
@@ -482,7 +502,7 @@ int main(int argc, char **argv)
   if (my_rank == 0)
   {
     //print_arr_int(my_rank, total_d_cluster, number_of_element, " cluster per element");
-    write_arr(outputFileName, total_d_cluster, number_of_element);
+    write_arr_map_cluster(outputFileName, total_d_cluster, number_of_element);
     write_arr_bin(outputFileName, total_d_cluster, number_of_element);
   }
   if (my_rank == 0)
