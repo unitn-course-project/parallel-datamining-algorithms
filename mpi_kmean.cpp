@@ -488,10 +488,13 @@ int main(int argc, char **argv)
   }
   local_a = get_input(my_rank, &local_n, &number_of_element, &dimension, comm_sz, MPI_COMM_WORLD);
   //print_arr(my_rank, local_a, local_n * m, "");
+  double m_start=MPI_Wtime();
   int *total_d_cluster = kmean(max_iterator, my_rank, number_of_cluster, local_a, dimension, number_of_element, local_n, comm_sz, MPI_COMM_WORLD);
+  double m_finish=MPI_Wtime();
   if (my_rank == 0)
   {
     //print_arr_int(my_rank, total_d_cluster, number_of_element, " cluster per element");
+    cout<< "Runing time is "<< m_finish-m_start <<" seconds"<<endl;
     write_arr_map_cluster(outputFileName, total_d_cluster, number_of_element);
     write_arr_bin(outputFileName, total_d_cluster, number_of_element);
   }
