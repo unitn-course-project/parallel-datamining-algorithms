@@ -22,6 +22,8 @@ int max_iterator = 1000;
 int number_of_element = 1000;
 int dimension = 300;
 int number_of_cluster = 4;
+int nThreads = 1;
+int nChunk=1;
 string outputFileName = "mpi_kmean-4";
 vector<string> filenames;
 void print_arr(int rank, double *x, int size, char *msg)
@@ -170,8 +172,8 @@ double *get_input(int rank, int *local_n, int *n, int *m, int comm_sz, MPI_Comm 
 double distance(double x[], double y[], int l_n)
 {
   double s = 0;
-#pragma omp parallel for num_threads(4) reduction(+ \
-                                                  : s)
+#pragma omp parallel for num_threads(nThreads) schedule(dynamic,nChunk) reduction(+ \
+                                                                    : s)
   for (int i = 0; i < l_n; i++)
     s += (x[i] - y[i]) * (x[i] - y[i]);
   return sqrt(s);
@@ -179,7 +181,7 @@ double distance(double x[], double y[], int l_n)
 
 void addVector(double x[], double y[], int l_n)
 {
-#pragma omp parallel for num_threads(4)
+#pragma omp parallel for num_threads(nThreads) schedule(dynamic,nChunk)
   for (int i = 0; i < l_n; i++)
   {
     x[i] = x[i] + y[i];
@@ -187,7 +189,7 @@ void addVector(double x[], double y[], int l_n)
 }
 void divVector(double x[], double dividend, int l_n)
 {
-#pragma omp parallel for num_threads(4)
+#pragma omp parallel for num_threads(nThreads) schedule(dynamic,nChunk)
   for (int i = 0; i < l_n; i++)
   {
     x[i] = x[i] / dividend;
@@ -217,14 +219,6 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
 /*
    *  init global mean 
    */
-#ifdef _OPENMP
-  int my_rank = omp_get_thread_num();
-  int thread_count = omp_get_num_threads();
-  cout << "In openmpi mode, thread count " << thread_count << endl;
-#else
-  int my_rank = 0;
-  int thread_count = 1;
-#endif
   double global_mean[m * k];
   memset(global_mean, 0, sizeof global_mean);
   if (rank == 0)
@@ -244,7 +238,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     // check stop criteria
     if (iterator > 0)
     {
-#pragma omp parallel for num_threads(4)
+#pragma omp parallel for num_threads(nThreads) schedule(dynamic,nChunk)
       for (int i = 0; i < m * k; i++)
         if (global_mean[i] != old_global_mean[i])
         {
@@ -301,6 +295,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     for (int i = 0; i < k; i++)
     {
       if (use_cluster[i] == 0)
+#pragma omp parallel for num_threads(nThreads)  schedule(dynamic,nChunk)
         for (int j = 0; j < m; j++)
           local_mean[i * m + j] = global_mean[i * m + j];
     }
@@ -311,7 +306,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     memcpy(old_global_mean, global_mean, sizeof(global_mean));
     memset(global_mean, 0, sizeof global_mean);
     //print_arr(rank,local_mean,m*k,"local mean");
-
+#pragma omp parallel for num_threads(nThreads) schedule(dynamic,nChunk)
     for (int i = 0; i < m * k; i++)
       local_mean[i] = local_mean[i] / comm_sz;
     MPI_Allreduce(local_mean, global_mean, k * m, MPI_DOUBLE, MPI_SUM, comm);
@@ -386,6 +381,8 @@ void show_help()
   cout << "-inputFolderPath *  path to inputer folder" << endl;
   cout << "-inputFileType * indicate the file should process" << endl;
   cout << "-outputFileName indicate the output file name (only filename)" << endl;
+  cout << "-nThreads number of thread using by openmp" << endl;
+  cout << "-nChunk number of thread using by openmp" << endl;
 }
 void check_arguments(int argc, char **argv)
 {
@@ -469,6 +466,14 @@ int main(int argc, char **argv)
     if ((arg == "-outputFileName") || (arg == "--outputFileName"))
     {
       outputFileName = argv[i + 1];
+    }
+    if ((arg == "-nThreads") || (arg == "--nThreads"))
+    {
+      nThreads = stoi(argv[i + 1]);
+    }
+    if ((arg == "-nChunk") || (arg == "--nChunk"))
+    {
+      nChunk = stoi(argv[i + 1]);
     }
   }
   if (mandatory_field < 2)
