@@ -1,6 +1,9 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 #include <mpi.h>
 #include <stdio.h>
 #include <string.h>
@@ -75,7 +78,7 @@ void write_arr(string filepath, double *arr, int size)
   {
     for (int i = 0; i < size; i++)
     {
-      file << std::fixed<<std::setprecision(5) << arr[i] << " ";
+      file << std::fixed << std::setprecision(5) << arr[i] << " ";
     }
     file.close();
     cout << "save array to file " << filepath << ".txt" << endl;
@@ -139,7 +142,7 @@ double *get_input(int rank, int *local_n, int *n, int *m, int comm_sz, MPI_Comm 
       start = start + (number_of_element / comm_sz);
   }
   int finish = 0;
-  if ((rank ) < number_of_element % comm_sz)
+  if ((rank) < number_of_element % comm_sz)
     finish = start + number_of_element / comm_sz + 1;
   else
     finish = start + number_of_element / comm_sz;
@@ -160,13 +163,15 @@ double *get_input(int rank, int *local_n, int *n, int *m, int comm_sz, MPI_Comm 
     }
     count++;
   }
- // print_arr(rank, local_a, *m * *local_n, " input ");
+  // print_arr(rank, local_a, *m * *local_n, " input ");
   return local_a;
 }
 
 double distance(double x[], double y[], int l_n)
 {
   double s = 0;
+#pragma omp parallel for num_threads(4) reduction(+ \
+                                                  : s)
   for (int i = 0; i < l_n; i++)
     s += (x[i] - y[i]) * (x[i] - y[i]);
   return sqrt(s);
@@ -174,6 +179,7 @@ double distance(double x[], double y[], int l_n)
 
 void addVector(double x[], double y[], int l_n)
 {
+#pragma omp parallel for num_threads(4)
   for (int i = 0; i < l_n; i++)
   {
     x[i] = x[i] + y[i];
@@ -181,6 +187,7 @@ void addVector(double x[], double y[], int l_n)
 }
 void divVector(double x[], double dividend, int l_n)
 {
+#pragma omp parallel for num_threads(4)
   for (int i = 0; i < l_n; i++)
   {
     x[i] = x[i] / dividend;
@@ -206,10 +213,18 @@ void divVector(double x[], double dividend, int l_n)
 
 int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, int local_n, int comm_sz, MPI_Comm comm)
 {
-  //print_arr(rank, local_a, m * local_n, "start kmean");
-  /*
+//print_arr(rank, local_a, m * local_n, "start kmean");
+/*
    *  init global mean 
    */
+#ifdef _OPENMP
+  int my_rank = omp_get_thread_num();
+  int thread_count = omp_get_num_threads();
+  cout << "In openmpi mode, thread count " << thread_count << endl;
+#else
+  int my_rank = 0;
+  int thread_count = 1;
+#endif
   double global_mean[m * k];
   memset(global_mean, 0, sizeof global_mean);
   if (rank == 0)
@@ -229,11 +244,12 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     // check stop criteria
     if (iterator > 0)
     {
+#pragma omp parallel for num_threads(4)
       for (int i = 0; i < m * k; i++)
         if (global_mean[i] != old_global_mean[i])
         {
+#pragma omp critical
           xd = 1;
-          break;
         }
     }
     else
@@ -298,7 +314,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
 
     for (int i = 0; i < m * k; i++)
       local_mean[i] = local_mean[i] / comm_sz;
-    MPI_Allreduce(local_mean, global_mean, k * m, MPI_DOUBLE, MPI_SUM,  comm);
+    MPI_Allreduce(local_mean, global_mean, k * m, MPI_DOUBLE, MPI_SUM, comm);
 
     //print_arr(rank,global_mean,m*k,"global mean");
     //printf("rank %d done propagate local mean", rank);
@@ -488,13 +504,13 @@ int main(int argc, char **argv)
   }
   local_a = get_input(my_rank, &local_n, &number_of_element, &dimension, comm_sz, MPI_COMM_WORLD);
   //print_arr(my_rank, local_a, local_n * m, "");
-  double m_start=MPI_Wtime();
+  double m_start = MPI_Wtime();
   int *total_d_cluster = kmean(max_iterator, my_rank, number_of_cluster, local_a, dimension, number_of_element, local_n, comm_sz, MPI_COMM_WORLD);
-  double m_finish=MPI_Wtime();
+  double m_finish = MPI_Wtime();
   if (my_rank == 0)
   {
     //print_arr_int(my_rank, total_d_cluster, number_of_element, " cluster per element");
-    cout<< "Runing time is "<< m_finish-m_start <<" seconds"<<endl;
+    cout << "Runing time is " << m_finish - m_start << " seconds" << endl;
     write_arr_map_cluster(outputFileName, total_d_cluster, number_of_element);
     write_arr_bin(outputFileName, total_d_cluster, number_of_element);
   }
