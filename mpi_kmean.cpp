@@ -172,7 +172,7 @@ double *get_input(int rank, int *local_n, int *n, int *m, int comm_sz, MPI_Comm 
 double distance(double x[], double y[], int l_n)
 {
   double s = 0;
-#pragma omp parallel for num_threads(nThreads) schedule(dynamic,nChunk) reduction(+ \
+#pragma omp parallel for num_threads(nThreads) schedule(static,nChunk) reduction(+ \
                                                                     : s)
   for (int i = 0; i < l_n; i++)
     s += (x[i] - y[i]) * (x[i] - y[i]);
@@ -181,7 +181,7 @@ double distance(double x[], double y[], int l_n)
 
 void addVector(double x[], double y[], int l_n)
 {
-#pragma omp parallel for num_threads(nThreads) schedule(dynamic,nChunk)
+#pragma omp parallel for num_threads(nThreads) schedule(static,nChunk)
   for (int i = 0; i < l_n; i++)
   {
     x[i] = x[i] + y[i];
@@ -189,7 +189,7 @@ void addVector(double x[], double y[], int l_n)
 }
 void divVector(double x[], double dividend, int l_n)
 {
-#pragma omp parallel for num_threads(nThreads) schedule(dynamic,nChunk)
+#pragma omp parallel for num_threads(nThreads) schedule(static,nChunk)
   for (int i = 0; i < l_n; i++)
   {
     x[i] = x[i] / dividend;
@@ -238,7 +238,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     // check stop criteria
     if (iterator > 0)
     {
-#pragma omp parallel for num_threads(nThreads) schedule(dynamic,nChunk)
+#pragma omp parallel for num_threads(nThreads) schedule(static,nChunk)
       for (int i = 0; i < m * k; i++)
         if (global_mean[i] != old_global_mean[i])
         {
@@ -295,7 +295,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     for (int i = 0; i < k; i++)
     {
       if (use_cluster[i] == 0)
-#pragma omp parallel for num_threads(nThreads)  schedule(dynamic,nChunk)
+#pragma omp parallel for num_threads(nThreads)  schedule(static,nChunk)
         for (int j = 0; j < m; j++)
           local_mean[i * m + j] = global_mean[i * m + j];
     }
@@ -306,7 +306,7 @@ int *kmean(int max_iterator, int rank, int k, double local_a[], int m, int n, in
     memcpy(old_global_mean, global_mean, sizeof(global_mean));
     memset(global_mean, 0, sizeof global_mean);
     //print_arr(rank,local_mean,m*k,"local mean");
-#pragma omp parallel for num_threads(nThreads) schedule(dynamic,nChunk)
+#pragma omp parallel for num_threads(nThreads) schedule(static,nChunk)
     for (int i = 0; i < m * k; i++)
       local_mean[i] = local_mean[i] / comm_sz;
     MPI_Allreduce(local_mean, global_mean, k * m, MPI_DOUBLE, MPI_SUM, comm);
