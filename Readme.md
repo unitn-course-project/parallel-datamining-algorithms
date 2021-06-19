@@ -4,6 +4,8 @@ The covid-19 outbreak in over the world increasingly become the most important r
 
 Therefore, in our project, we will use the High Performace Computing (HPC) cluster to execute some text-mining-parallel algorithms in order to extract knowledge from a big data set of articles. We will cluster similar articles into groups. Then, over articles in each group, we will finding the set of words that frequently appear together in the most of articles.
 
+See [report.pdf](report.pdf) for more detail.
+
 ## Structure of code
 - [build_vector.c](build_vector.c): Preprocess, build dictionary and vectorize text input task
 - [mpi_kmean.cpp](mpi_kmean.cpp): Clustering task
